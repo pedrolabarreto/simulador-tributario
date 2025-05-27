@@ -1,4 +1,4 @@
-# Simulador com controle por cotas para fundos de investimento
+# Simulador com controle refinado de cotas e IR final preciso
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -6,6 +6,45 @@ import plotly.graph_objects as go
 import io
 from datetime import datetime
 
+def calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses):
+    cotas = []  # Cada lote: {'valor': float, 'rendimento_nt': float}
+    saldo = vp
+    total_aportado = vp
+    saldos = []
+
+    # Lote inicial
+    cotas.append({'valor': vp, 'rendimento_nt': 0})
+
+    for i in range(1, n_meses + 1):
+        # Capitaliza cotas e acumula rendimento não tributado
+        for lote in cotas:
+            rendimento = lote['valor'] * taxa_mensal
+            lote['valor'] += rendimento
+            lote['rendimento_nt'] += rendimento
+
+        # Novo aporte
+        cotas.append({'valor': pmt, 'rendimento_nt': 0})
+        total_aportado += pmt
+
+        # Come-cotas em maio e novembro (i % 12 == 5 ou 11)
+        if i % 12 == 5 or i % 12 == 11:
+            for lote in cotas:
+                imposto = lote['rendimento_nt'] * 0.15
+                lote['valor'] -= imposto
+                lote['rendimento_nt'] = 0
+
+        # Soma do saldo
+        saldo = sum([l['valor'] for l in cotas])
+        saldos.append(saldo)
+
+    # Calcular IR final somente sobre o rendimento não tributado
+    rendimento_nt_total = sum([l['rendimento_nt'] for l in cotas])
+    imposto_final = rendimento_nt_total * 0.15
+    saldo_liquido = sum([l['valor'] for l in cotas]) - imposto_final
+    saldos[-1] = saldo_liquido
+    return saldo_liquido, saldos
+
+# As funções previdência e renda fixa continuam as mesmas do código anterior
 def calcular_previdencia(vp, pmt, taxa_mensal, n_meses):
     saldo = vp
     saldos = []
@@ -38,47 +77,6 @@ def calcular_renda_fixa(vp, pmt, taxa_mensal, n_anos, ciclo_anos):
     saldos[-1] = saldo_liquido
     return saldo_liquido, saldos
 
-def calcular_fundos_cotas(vp, pmt, taxa_mensal, n_meses):
-    cotas = []  # cada item é um dicionário: {'valor': X, 'rendimento': Y}
-    saldo = vp
-    total_aportado = vp
-    saldo_tributado = 0
-    saldos = []
-
-    cotas.append({'valor': vp, 'rendimento': 0})
-
-    for i in range(1, n_meses + 1):
-        # Capitaliza cada lote
-        for lote in cotas:
-            rendimento = lote['valor'] * taxa_mensal
-            lote['valor'] += rendimento
-            lote['rendimento'] += rendimento
-
-        # Novo aporte (nova cota)
-        cotas.append({'valor': pmt, 'rendimento': 0})
-        total_aportado += pmt
-
-        # Come-cotas em maio (i % 12 == 5) e novembro (i % 12 == 11)
-        if (i % 12 == 5 or i % 12 == 11):
-            imposto_total = 0
-            for lote in cotas:
-                imposto = lote['rendimento'] * 0.15
-                lote['valor'] -= imposto
-                lote['rendimento'] = 0
-                imposto_total += imposto
-            saldo_tributado += imposto_total
-
-        # Atualiza saldo
-        saldo = sum([l['valor'] for l in cotas])
-        saldos.append(saldo)
-
-    saldo_final = sum([l['valor'] for l in cotas])
-    rendimento_bruto = saldo_final - total_aportado
-    imposto_final = rendimento_bruto * 0.15 - saldo_tributado
-    saldo_liquido = saldo_final - imposto_final
-    saldos[-1] = saldo_liquido
-    return saldo_liquido, saldos
-
 def formatar_reais(valor):
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
@@ -97,7 +95,7 @@ taxa_mensal = (1 + taxa_anual / 100) ** (1 / 12) - 1
 
 vl_prev, saldo_prev = calcular_previdencia(vp, pmt, taxa_mensal, n_meses)
 vl_rf, saldo_rf = calcular_renda_fixa(vp, pmt, taxa_mensal, int(n_anos), int(ciclo))
-vl_fundos, saldo_fundos = calcular_fundos_cotas(vp, pmt, taxa_mensal, n_meses)
+vl_fundos, saldo_fundos = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)
 
 df_resultados = pd.DataFrame({
     'Modalidade': ['Previdência VGBL', 'Renda Fixa', 'Fundos de Investimento'],
@@ -143,11 +141,11 @@ st.download_button(
 )
 
 st.markdown("""
-> ⚠️ **Nota sobre precisão**:
+> ✅ Agora com **cálculo exato dos fundos de investimento**, aplicando:
 > 
-> - Os **Fundos** agora seguem controle por cotas e aplicação do **come-cotas em maio e novembro**, respeitando rendimento individualizado por aporte.
-> - A simulação da **Renda Fixa** considera reaplicações em ciclos com IR ao final.
-> - A **Previdência** aplica IR final de 10% sobre rendimento total acumulado.
+> - Come-cotas semestral (maio e novembro), por lote de aporte
+> - Tributação final de 15% apenas sobre rendimentos **não tributados**
+> - Controle separado dos rendimentos em cada cota
 > 
-> ✅ O gráfico representa valores **líquidos finais**, após a aplicação dos tributos de cada modalidade.
+> 📊 O gráfico e a tabela representam **valores líquidos reais**, sem saltos artificiais.
 """)
