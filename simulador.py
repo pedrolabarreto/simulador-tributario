@@ -401,18 +401,12 @@ df_equiv = pd.DataFrame({
 st.dataframe(df_equiv, use_container_width=True)
 
 # Quadro de rentabilidade bruta equivalente (posicionado após o gráfico)
-
-
- + " a mais que a renda fixa, e "
     + formatar(economia_fundos) + " a mais que os fundos de investimento, "
     "considerando a mesma rentabilidade bruta."
 )
 
 
 # Quadro de rentabilidade bruta equivalente (posicionado após o gráfico)
-
-
- + " a mais que a renda fixa, e "
     + formatar(economia_fundos) + " a mais que os fundos de investimento, "
     "considerando a mesma rentabilidade bruta."
 )
