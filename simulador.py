@@ -82,6 +82,7 @@ def calcular_previdencia_regressiva(vp, pmt, taxa_mensal, n_meses):
         elif meses <= 96:
         elif meses <= 120:
         else:
+    pass
 
     ir_total = 0
     for lote in cotas:
@@ -175,6 +176,7 @@ def calcular_previdencia_regressiva(vp, pmt, taxa_mensal, n_meses):
         elif meses <= 96:
         elif meses <= 120:
         else:
+    pass
 
     ir_total = 0
     for lote in cotas:
