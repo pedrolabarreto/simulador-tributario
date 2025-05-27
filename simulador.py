@@ -1,9 +1,12 @@
-# Simulador Web de Projeção de Capital com Impacto Tributário
+# Simulador Web de Projeção de Capital com Impacto Tributário - Versão Avançada
 import streamlit as st
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+import io
+from datetime import datetime
 
+# Funções
 def calcular_previdencia(vp, pmt, taxa_mensal, n_meses):
     saldo = vp
     saldos = []
@@ -50,41 +53,73 @@ def calcular_fundos(vp, pmt, taxa_mensal, n_meses):
     saldo -= imposto_final
     return saldo, saldos
 
-st.title("Simulador de Projeção de Capital - Impacto Tributário")
+def formatar_reais(valor):
+    return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-st.sidebar.header("Parâmetros de Entrada")
-vp = st.sidebar.number_input("Aporte Inicial (R$)", value=50000.0)
-pmt = st.sidebar.number_input("Aporte Mensal (R$)", value=5000.0)
-taxa_anual = st.sidebar.number_input("Taxa de Retorno Anual (%)", value=10.0)
-n_anos = st.sidebar.number_input("Prazo (anos)", min_value=2, value=25)
-ciclo = st.sidebar.number_input("Ciclo de Renda Fixa (anos)", min_value=1, value=4)
+# Streamlit App
+st.set_page_config(page_title="Simulador Tributário", layout="wide")
+st.title("📊 Simulador de Projeção de Capital - Impacto Tributário")
+
+with st.sidebar.expander("🔧 Parâmetros de Entrada", expanded=True):
+    vp = st.number_input("Aporte Inicial (R$)", value=50000.0)
+    pmt = st.number_input("Aporte Mensal (R$)", value=5000.0)
+    taxa_anual = st.number_input("Taxa de Retorno Anual (%)", value=10.0)
+    n_anos = st.number_input("Prazo (anos)", min_value=2, value=25)
+    ciclo = st.number_input("Ciclo de Renda Fixa (anos)", min_value=1, value=4)
 
 n_meses = int(n_anos * 12)
 taxa_mensal = (1 + taxa_anual / 100) ** (1 / 12) - 1
 
-vl_previdencia, saldo_prev = calcular_previdencia(vp, pmt, taxa_mensal, n_meses)
-vl_renda_fixa, saldo_rf = calcular_renda_fixa(vp, pmt, taxa_mensal, n_anos, ciclo)
+# Cálculos
+vl_prev, saldo_prev = calcular_previdencia(vp, pmt, taxa_mensal, n_meses)
+vl_rf, saldo_rf = calcular_renda_fixa(vp, pmt, taxa_mensal, int(n_anos), int(ciclo))
 vl_fundos, saldo_fundos = calcular_fundos(vp, pmt, taxa_mensal, n_meses)
 
-st.subheader("Resultados - Valor Líquido Final")
-df = pd.DataFrame({
+# Tabela de resultados
+df_resultados = pd.DataFrame({
     'Modalidade': ['Previdência VGBL', 'Renda Fixa', 'Fundos de Investimento'],
-    'Valor Líquido Final (R$)': [vl_previdencia, vl_renda_fixa, vl_fundos],
+    'Valor Líquido Final (R$)': [formatar_reais(vl_prev), formatar_reais(vl_rf), formatar_reais(vl_fundos)],
     'Desvio Estimado': ['0%', '-0 a -2%', '+0 a +2,5%']
 })
-st.dataframe(df, use_container_width=True)
+st.subheader("📋 Resultados Comparativos")
+st.dataframe(df_resultados, use_container_width=True)
 
-st.subheader("Evolução do Capital Acumulado")
-plt.figure(figsize=(10, 5))
-plt.plot(saldo_prev, label="Previdência")
-plt.plot(saldo_rf, label="Renda Fixa")
-plt.plot(saldo_fundos, label="Fundos")
-plt.xlabel("Meses")
-plt.ylabel("Saldo Acumulado (R$)")
-plt.legend()
-plt.grid(True)
-st.pyplot(plt)
+# Gráfico com Plotly
+st.subheader("📈 Evolução do Capital Acumulado")
+fig = go.Figure()
+fig.add_trace(go.Scatter(y=saldo_prev, mode='lines', name='Previdência'))
+fig.add_trace(go.Scatter(y=saldo_rf, mode='lines', name='Renda Fixa'))
+fig.add_trace(go.Scatter(y=saldo_fundos, mode='lines', name='Fundos'))
+fig.update_layout(
+    xaxis_title="Meses",
+    yaxis_title="Saldo Acumulado (R$)",
+    hovermode="x unified",
+    yaxis_tickprefix="R$ ",
+    yaxis_tickformat=",."
+)
+st.plotly_chart(fig, use_container_width=True)
 
+# Exportação para Excel
+df_export = pd.DataFrame({
+    'Mes': list(range(1, n_meses + 1)),
+    'Previdência': saldo_prev,
+    'Renda Fixa': saldo_rf,
+    'Fundos': saldo_fundos
+})
+
+buffer = io.BytesIO()
+with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+    df_export.to_excel(writer, sheet_name='Evolucao', index=False)
+    pd.DataFrame(df_resultados).to_excel(writer, sheet_name='Resumo', index=False)
+    writer.save()
+st.download_button(
+    label="📥 Baixar Excel com Resultados",
+    data=buffer,
+    file_name=f"simulador_tributario_{datetime.today().date()}.xlsx",
+    mime="application/vnd.ms-excel"
+)
+
+# Nota de rodapé
 st.markdown("""
 > ⚠️ **Nota sobre precisão**:
 > 
