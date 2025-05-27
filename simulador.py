@@ -1,6 +1,4 @@
 
-def formatar(valor):
-    return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def calcular_vl_previdencia(vp, pmt, taxa_mensal, n_meses):
@@ -106,8 +104,6 @@ def calcular_previdencia_regressiva(vp, pmt, taxa_mensal, n_meses):
     saldos[-1] = saldo_liquido
     return round(saldo_liquido, 2), saldos, round(ir_total, 2)
 
-def formatar(valor):
-    return f"R$ {valor:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def calcular_vl_previdencia(vp, pmt, taxa_mensal, n_meses):
     saldo = vp
@@ -400,15 +396,11 @@ df_equiv = pd.DataFrame({
 })
 st.dataframe(df_equiv, use_container_width=True)
 
-# Quadro de rentabilidade bruta equivalente (posicionado após o gráfico)
-    + formatar(economia_fundos) + " a mais que os fundos de investimento, "
-    "considerando a mesma rentabilidade bruta."
+# Quadro de rentabilidade bruta equivalente (posicionado após o gráfico)"considerando a mesma rentabilidade bruta."
 )
 
 
-# Quadro de rentabilidade bruta equivalente (posicionado após o gráfico)
-    + formatar(economia_fundos) + " a mais que os fundos de investimento, "
-    "considerando a mesma rentabilidade bruta."
+# Quadro de rentabilidade bruta equivalente (posicionado após o gráfico)"considerando a mesma rentabilidade bruta."
 )
 
 
