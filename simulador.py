@@ -1,4 +1,4 @@
-# Simulador Web de Projeção de Capital com Impacto Tributário - Versão com Gráfico Líquido
+# Simulador com controle por cotas para fundos de investimento
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -9,7 +9,7 @@ from datetime import datetime
 def calcular_previdencia(vp, pmt, taxa_mensal, n_meses):
     saldo = vp
     saldos = []
-    for i in range(n_meses):
+    for _ in range(n_meses):
         saldo *= (1 + taxa_mensal)
         saldo += pmt
         saldos.append(saldo)
@@ -33,29 +33,49 @@ def calcular_renda_fixa(vp, pmt, taxa_mensal, n_anos, ciclo_anos):
             saldo -= rendimento * 0.15
             vp = saldo
             total_aportes = 0
-    # Descontar IR final se necessário
     rendimento_final = saldo - (vp + total_aportes)
     saldo_liquido = saldo - rendimento_final * 0.15
     saldos[-1] = saldo_liquido
     return saldo_liquido, saldos
 
-def calcular_fundos(vp, pmt, taxa_mensal, n_meses):
+def calcular_fundos_cotas(vp, pmt, taxa_mensal, n_meses):
+    cotas = []  # cada item é um dicionário: {'valor': X, 'rendimento': Y}
     saldo = vp
     total_aportado = vp
     saldo_tributado = 0
     saldos = []
+
+    cotas.append({'valor': vp, 'rendimento': 0})
+
     for i in range(1, n_meses + 1):
-        rendimento_mes = saldo * taxa_mensal
-        saldo += rendimento_mes + pmt
+        # Capitaliza cada lote
+        for lote in cotas:
+            rendimento = lote['valor'] * taxa_mensal
+            lote['valor'] += rendimento
+            lote['rendimento'] += rendimento
+
+        # Novo aporte (nova cota)
+        cotas.append({'valor': pmt, 'rendimento': 0})
         total_aportado += pmt
-        if i % 6 == 0:
-            imposto = (saldo - total_aportado - saldo_tributado) * 0.15
-            saldo -= imposto
-            saldo_tributado += imposto
+
+        # Come-cotas em maio (i % 12 == 5) e novembro (i % 12 == 11)
+        if (i % 12 == 5 or i % 12 == 11):
+            imposto_total = 0
+            for lote in cotas:
+                imposto = lote['rendimento'] * 0.15
+                lote['valor'] -= imposto
+                lote['rendimento'] = 0
+                imposto_total += imposto
+            saldo_tributado += imposto_total
+
+        # Atualiza saldo
+        saldo = sum([l['valor'] for l in cotas])
         saldos.append(saldo)
-    rendimento_bruto = saldo - total_aportado
-    imposto_final = (rendimento_bruto * 0.15) - saldo_tributado
-    saldo_liquido = saldo - imposto_final
+
+    saldo_final = sum([l['valor'] for l in cotas])
+    rendimento_bruto = saldo_final - total_aportado
+    imposto_final = rendimento_bruto * 0.15 - saldo_tributado
+    saldo_liquido = saldo_final - imposto_final
     saldos[-1] = saldo_liquido
     return saldo_liquido, saldos
 
@@ -77,7 +97,7 @@ taxa_mensal = (1 + taxa_anual / 100) ** (1 / 12) - 1
 
 vl_prev, saldo_prev = calcular_previdencia(vp, pmt, taxa_mensal, n_meses)
 vl_rf, saldo_rf = calcular_renda_fixa(vp, pmt, taxa_mensal, int(n_anos), int(ciclo))
-vl_fundos, saldo_fundos = calcular_fundos(vp, pmt, taxa_mensal, n_meses)
+vl_fundos, saldo_fundos = calcular_fundos_cotas(vp, pmt, taxa_mensal, n_meses)
 
 df_resultados = pd.DataFrame({
     'Modalidade': ['Previdência VGBL', 'Renda Fixa', 'Fundos de Investimento'],
@@ -125,9 +145,9 @@ st.download_button(
 st.markdown("""
 > ⚠️ **Nota sobre precisão**:
 > 
-> - A simulação dos **Fundos** considera come-cotas e IR final, mas não separa cotas individualizadas. Pode **subestimar o valor líquido final em até 2,5%**.
-> - A **Renda Fixa** assume reaplicação em blocos de ciclo definido, com IR ao final. Pode **superestimar o valor líquido em até 2%**.
-> - A **Previdência** é simulada com IR de 10% sobre rendimento ao final, sem come-cotas.
+> - Os **Fundos** agora seguem controle por cotas e aplicação do **come-cotas em maio e novembro**, respeitando rendimento individualizado por aporte.
+> - A simulação da **Renda Fixa** considera reaplicações em ciclos com IR ao final.
+> - A **Previdência** aplica IR final de 10% sobre rendimento total acumulado.
 > 
-> ✅ O gráfico exibe **valores líquidos**, considerando a dedução dos impostos no último período.
+> ✅ O gráfico representa valores **líquidos finais**, após a aplicação dos tributos de cada modalidade.
 """)
