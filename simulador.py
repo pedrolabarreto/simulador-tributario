@@ -162,6 +162,9 @@ def main():
     st.subheader("📊 Rentabilidade Bruta Necessária para Igualar à Previdência")
     df_equiv = pd.DataFrame({
         'Modalidade': ['Renda Fixa', 'Fundos de Investimento'],
+        # Definir taxas equivalentes antes de montar a tabela
+        taxa_eq_rf = encontrar_taxa_equivalente(lambda vp, pmt, t, n: calcular_renda_fixa(vp, pmt, t, anos, 4), vp, pmt, vl_prev, n_meses)
+        taxa_eq_fundos = encontrar_taxa_equivalente(calcular_fundos, vp, pmt, vl_prev, n_meses)
         'Taxa Bruta Anual Equivalente (%)': [round(taxa_eq_rf, 2), round(taxa_eq_fundos, 2)]
     }, index=[1, 2])
     st.dataframe(df_equiv, use_container_width=True)
