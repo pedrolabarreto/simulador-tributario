@@ -383,7 +383,7 @@ taxa_fundos_equivalente = encontrar_taxa_equivalente(calcular_vl_fundos, vp, pmt
 
 # Exibir quadro comparativo
 st.subheader("📐 Rentabilidade Bruta Equivalente")
-st.write("Para que os investimentos em Renda Fixa ou Fundos entreguem o mesmo valor líquido da Previdência, as taxas brutas necessárias seriam:")
+
 
 df_equiv = pd.DataFrame({
     'Modalidade': ['Previdência (referência)', 'Renda Fixa', 'Fundos de Investimento'],
@@ -413,8 +413,6 @@ st.dataframe(df_equiv, use_container_width=True)
 # Frase automática de apoio com valores formatados
 vl_rf, *_ = calcular_renda_fixa(vp, pmt, taxa_mensal, int(n_anos), int(ciclo))
 vl_fundos, *_ = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)    + formatar(economia_fundos)    "considerando a mesma rentabilidade bruta."
-)
-
 
 df_export = pd.DataFrame({
     'Mes': list(range(1, n_meses + 1)),
@@ -434,7 +432,6 @@ st.download_button(
     data=buffer,
     file_name=f"simulador_tributario_{datetime.today().date()}.xlsx",
     mime="application/vnd.ms-excel"
-)
 
 st.markdown("""
 > ✅ Agora com **cálculo exato dos fundos de investimento**, aplicando:
