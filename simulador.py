@@ -1,4 +1,4 @@
-# Simulador Web de Projeção de Capital com Impacto Tributário - Versão Avançada
+# Simulador Web de Projeção de Capital com Impacto Tributário - Versão Corrigida
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -111,7 +111,7 @@ buffer = io.BytesIO()
 with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
     df_export.to_excel(writer, sheet_name='Evolucao', index=False)
     pd.DataFrame(df_resultados).to_excel(writer, sheet_name='Resumo', index=False)
-    writer.save()
+
 st.download_button(
     label="📥 Baixar Excel com Resultados",
     data=buffer,
