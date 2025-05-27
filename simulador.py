@@ -437,6 +437,22 @@ vl_fundos, *_ = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)
 economia_rf = vl_prev - vl_rf
 economia_fundos = vl_prev - vl_fundos
 
+rf_str = formatar(economia_rf)
+fundos_str = formatar(economia_fundos)
+
+st.subheader("💬 Vantagem Tributária Estimada")
+st.write(f"Ao final do período, a previdência resultaria em um ganho líquido de {rf_str} a mais que a renda fixa, e {fundos_str} a mais que os fundos de investimento, considerando a mesma rentabilidade bruta.")
+
+
+# Quadro de rentabilidade bruta equivalente (posicionado após o gráfico)
+
+
+# Frase automática de apoio com valores formatados
+vl_rf, *_ = calcular_renda_fixa(vp, pmt, taxa_mensal, int(n_anos), int(ciclo))
+vl_fundos, *_ = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)
+economia_rf = vl_prev - vl_rf
+economia_fundos = vl_prev - vl_fundos
+
 st.subheader("💬 Vantagem Tributária Estimada")
 st.write(
     "Ao final do período, a previdência resultaria em um ganho líquido de "
