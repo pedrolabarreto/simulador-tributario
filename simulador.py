@@ -8,7 +8,7 @@ from datetime import datetime
 def calcular_previdencia_regressiva(vp, pmt, taxa_mensal, n_meses):
     cotas = [{'valor': vp, 'rendimento': 0, 'mes_entrada': 0}]
     saldos = []
-    total_aportado = vp
+    (vp + pmt * n_meses) = vp
 
     for i in range(1, n_meses + 1):
         for lote in cotas:
@@ -18,7 +18,7 @@ def calcular_previdencia_regressiva(vp, pmt, taxa_mensal, n_meses):
 
         if pmt > 0:
             cotas.append({'valor': pmt, 'rendimento': 0, 'mes_entrada': i})
-            total_aportado += pmt
+            (vp + pmt * n_meses) += pmt
 
         saldos.append(sum(l['valor'] for l in cotas))
 
@@ -49,7 +49,7 @@ def calcular_previdencia_regressiva(vp, pmt, taxa_mensal, n_meses):
 
 def calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses):
     cotas = []
-    total_aportado = vp
+    (vp + pmt * n_meses) = vp
     saldos = []
 
     cotas.append({'valor': vp, 'rendimento_nt': 0, 'mes_entrada': 0})
@@ -61,7 +61,7 @@ def calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses):
             lote['rendimento_nt'] += rendimento
 
         cotas.append({'valor': pmt, 'rendimento_nt': 0, 'mes_entrada': i})
-        total_aportado += pmt
+        (vp + pmt * n_meses) += pmt
 
         if i % 12 == 5 or i % 12 == 11:
             for lote in cotas:
@@ -124,7 +124,7 @@ def main():
     df_resultados = pd.DataFrame({
         'Modalidade': ['Previdência VGBL', 'Renda Fixa', 'Fundos de Investimento'],
         'Valor Líquido Final (R$)': [formatar_reais(vl_prev), formatar_reais(vl_rf), formatar_reais(vl_fundos)],
-        'IR Total (R$)': [formatar_reais(ir_prev), formatar_reais((vl_rf - total_aportado) * 0.15), formatar_reais((vl_fundos - (vp + pmt * n_meses)) * 0.15)]
+        'IR Total (R$)': [formatar_reais(ir_prev), formatar_reais((vl_rf - (vp + pmt * n_meses)) * 0.15), formatar_reais((vl_fundos - (vp + pmt * n_meses)) * 0.15)]
     })
 
     st.subheader("📋 Resultados Comparativos")
