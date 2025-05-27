@@ -164,6 +164,27 @@ df_resultados = pd.DataFrame({
     'Desvio Estimado': ['0%', '-0 a -2%', '+0 a +2,5%']
 })
 st.subheader("📋 Resultados Comparativos")
+
+# Cálculo da taxa de equivalência para Renda Fixa e Fundos
+taxa_mensal_prev = (1 + taxa_anual / 100) ** (1 / 12) - 1
+vl_prev_target = calcular_vl_previdencia(vp, pmt, taxa_mensal_prev, n_meses)
+taxa_rf_equivalente = encontrar_taxa_equivalente(calcular_vl_renda_fixa, vp, pmt, vl_prev_target, n_meses, int(n_anos), int(ciclo))
+taxa_fundos_equivalente = encontrar_taxa_equivalente(calcular_vl_fundos, vp, pmt, vl_prev_target, n_meses)
+
+# Exibir quadro comparativo
+st.subheader("📐 Rentabilidade Bruta Equivalente")
+st.write("Para que os investimentos em Renda Fixa ou Fundos entreguem o mesmo valor líquido da Previdência, as taxas brutas necessárias seriam:")
+
+df_equiv = pd.DataFrame({
+    'Modalidade': ['Previdência (referência)', 'Renda Fixa', 'Fundos de Investimento'],
+    'Rentabilidade Anual Necessária (%)': [
+        round(taxa_anual, 2),
+        round(taxa_rf_equivalente * 100, 2),
+        round(taxa_fundos_equivalente * 100, 2)
+    ]
+})
+st.dataframe(df_equiv, use_container_width=True)
+
 st.dataframe(df_resultados, use_container_width=True)
 
 st.subheader("📈 Evolução do Capital Líquido")
