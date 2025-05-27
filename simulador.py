@@ -278,18 +278,7 @@ taxa_rf_equivalente = encontrar_taxa_equivalente(calcular_vl_renda_fixa, vp, pmt
 taxa_fundos_equivalente = encontrar_taxa_equivalente(calcular_vl_fundos, vp, pmt, vl_prev_target, n_meses)
 
 # Exibir quadro comparativo
-st.subheader("📐 Rentabilidade Bruta Equivalente")
-st.write("Para que os investimentos em Renda Fixa ou Fundos entreguem o mesmo valor líquido da Previdência, as taxas brutas necessárias seriam:")
 
-df_equiv = pd.DataFrame({
-    'Modalidade': ['Previdência (referência)', 'Renda Fixa', 'Fundos de Investimento'],
-    'Rentabilidade Anual Necessária (%)': [
-        round(taxa_anual, 2),
-        round(taxa_rf_equivalente * 100, 2),
-        round(taxa_fundos_equivalente * 100, 2)
-    ]
-})
-st.dataframe(df_equiv, use_container_width=True)
 
 # Frase automática de apoio
 vl_rf, *_ = calcular_renda_fixa(vp, pmt, taxa_mensal, int(n_anos), int(ciclo))
@@ -318,21 +307,10 @@ fig.update_layout(
 fig.update_traces(hovertemplate="R$ %{y:,.0f}")
 st.plotly_chart(fig, use_container_width=True)
 
-# Quadro de rentabilidade bruta equivalente
-st.subheader("📐 Rentabilidade Bruta Equivalente")
-st.write("Para que os investimentos em Renda Fixa ou Fundos entreguem o mesmo valor líquido da Previdência, as taxas brutas necessárias seriam:")
+# Quadro de rentabilidade bruta equivalente (posicionado após o gráfico)
 
-df_equiv = pd.DataFrame({
-    'Modalidade': ['Previdência (referência)', 'Renda Fixa', 'Fundos de Investimento'],
-    'Rentabilidade Anual Necessária (%)': [
-        round(taxa_anual, 2),
-        round(taxa_rf_equivalente * 100, 2),
-        round(taxa_fundos_equivalente * 100, 2)
-    ]
-})
-st.dataframe(df_equiv, use_container_width=True)
 
-# Frase automática de apoio
+# Frase automática de apoio com valores formatados
 vl_rf, *_ = calcular_renda_fixa(vp, pmt, taxa_mensal, int(n_anos), int(ciclo))
 vl_fundos, *_ = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)
 economia_rf = vl_prev - vl_rf
@@ -340,10 +318,10 @@ economia_fundos = vl_prev - vl_fundos
 
 st.subheader("💬 Vantagem Tributária Estimada")
 st.write(
-    f"Ao final do período, a previdência resultaria em um ganho líquido de "
-    f"R$ {economia_rf:,.0f} a mais que a renda fixa, e "
-    f"R$ {economia_fundos:,.0f} a mais que os fundos de investimento, "
-    f"considerando a mesma rentabilidade bruta."
+    "Ao final do período, a previdência resultaria em um ganho líquido de "
+    + f"{formatar(economia_rf)} a mais que a renda fixa, e "
+    + f"{formatar(economia_fundos)} a mais que os fundos de investimento, "
+    "considerando a mesma rentabilidade bruta."
 )
 
 
