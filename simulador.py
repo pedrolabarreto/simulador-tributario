@@ -156,6 +156,12 @@ def main():
     fig.add_trace(go.Scatter(x=df_evolucao['Mês'], y=df_evolucao['Fundos'], name='Fundos'))
     fig.update_layout(title="Evolução dos Investimentos", xaxis_title="Meses", yaxis_title="Valor (R$)")
     st.plotly_chart(fig, use_container_width=True)
+    # Calcular taxas equivalentes
+
+    taxa_eq_rf = encontrar_taxa_equivalente(calcular_renda_fixa, vp, pmt, vl_prev, anos, ciclo)
+
+    taxa_eq_fundos = encontrar_taxa_equivalente(calcular_fundos_cotas_preciso, vp, pmt, vl_prev, anos)
+
     st.subheader('📊 Rentabilidade Bruta Necessária para Igualar à Previdência')
     df_eq = pd.DataFrame({
         'Modalidade': ['Renda Fixa', 'Fundos de Investimento'],
