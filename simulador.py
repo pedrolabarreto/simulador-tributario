@@ -8,7 +8,7 @@ from datetime import datetime
 def calcular_previdencia_regressiva(vp, pmt, taxa_mensal, n_meses):
     cotas = [{'valor': vp, 'rendimento': 0, 'mes_entrada': 0}]
     saldos = []
-    (vp + pmt * n_meses) = vp
+    total_aportado = vp
 
     for i in range(1, n_meses + 1):
         for lote in cotas:
@@ -18,7 +18,7 @@ def calcular_previdencia_regressiva(vp, pmt, taxa_mensal, n_meses):
 
         if pmt > 0:
             cotas.append({'valor': pmt, 'rendimento': 0, 'mes_entrada': i})
-            (vp + pmt * n_meses) += pmt
+            total_aportado += pmt
 
         saldos.append(sum(l['valor'] for l in cotas))
 
@@ -49,7 +49,7 @@ def calcular_previdencia_regressiva(vp, pmt, taxa_mensal, n_meses):
 
 def calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses):
     cotas = []
-    (vp + pmt * n_meses) = vp
+    total_aportado = vp
     saldos = []
 
     cotas.append({'valor': vp, 'rendimento_nt': 0, 'mes_entrada': 0})
@@ -61,7 +61,7 @@ def calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses):
             lote['rendimento_nt'] += rendimento
 
         cotas.append({'valor': pmt, 'rendimento_nt': 0, 'mes_entrada': i})
-        (vp + pmt * n_meses) += pmt
+        total_aportado += pmt
 
         if i % 12 == 5 or i % 12 == 11:
             for lote in cotas:
