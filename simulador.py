@@ -102,6 +102,7 @@ def calcular_previdencia_regressiva(vp, pmt, taxa_mensal, n_meses):
     saldos[-1] = saldo_liquido
     return round(saldo_liquido, 2), saldos, round(ir_total, 2)
 
+    return f"R$ {valor:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def calcular_vl_previdencia(vp, pmt, taxa_mensal, n_meses):
     saldo = vp
@@ -383,7 +384,7 @@ taxa_fundos_equivalente = encontrar_taxa_equivalente(calcular_vl_fundos, vp, pmt
 
 # Exibir quadro comparativo
 st.subheader("📐 Rentabilidade Bruta Equivalente")
-
+st.write("Para que os investimentos em Renda Fixa ou Fundos entreguem o mesmo valor líquido da Previdência, as taxas brutas necessárias seriam:")
 
 df_equiv = pd.DataFrame({
     'Modalidade': ['Previdência (referência)', 'Renda Fixa', 'Fundos de Investimento'],
@@ -400,6 +401,27 @@ vl_rf, *_ = calcular_renda_fixa(vp, pmt, taxa_mensal, int(n_anos), int(ciclo))
 vl_fundos, *_ = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)
 
 
+
+st.dataframe(df_resultados, use_container_width=True)
+
+st.subheader("📈 Evolução do Capital Líquido")
+fig = go.Figure()
+fig.add_trace(go.Scatter(y=saldo_prev, mode='lines', name='Previdência'))
+fig.add_trace(go.Scatter(y=saldo_rf, mode='lines', name='Renda Fixa'))
+fig.add_trace(go.Scatter(y=saldo_fundos, mode='lines', name='Fundos'))
+fig.update_layout(
+    xaxis_title="Meses",
+    yaxis_title="Saldo Acumulado Líquido (R$)",
+    hovermode="x unified",
+    yaxis_tickprefix="R$ ",
+    yaxis_tickformat=",."
+fig.update_traces(hovertemplate="R$ %{y:,.0f}")
+st.plotly_chart(fig, use_container_width=True)
+
+# Quadro de rentabilidade bruta equivalente (posicionado após o gráfico)
+st.subheader("📐 Rentabilidade Bruta Equivalente")
+st.write("Para que os investimentos em Renda Fixa ou Fundos entreguem o mesmo valor líquido da Previdência, as taxas brutas necessárias seriam:")
+
 df_equiv = pd.DataFrame({
     'Modalidade': ['Previdência (referência)', 'Renda Fixa', 'Fundos de Investimento'],
     'Rentabilidade Anual Necessária (%)': [
@@ -412,7 +434,11 @@ st.dataframe(df_equiv, use_container_width=True)
 
 # Frase automática de apoio com valores formatados
 vl_rf, *_ = calcular_renda_fixa(vp, pmt, taxa_mensal, int(n_anos), int(ciclo))
-vl_fundos, *_ = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)    + formatar(economia_fundos)    "considerando a mesma rentabilidade bruta."
+vl_fundos, *_ = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)
+
+st.write(
+    "Ao final do período, a previdência resultaria em um ganho líquido de "
+
 
 df_export = pd.DataFrame({
     'Mes': list(range(1, n_meses + 1)),
