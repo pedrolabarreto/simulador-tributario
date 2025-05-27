@@ -1,3 +1,17 @@
+
+
+def encontrar_taxa_equivalente(func, vp, pmt, target, n_meses):
+    baixo = 0.0001
+    alto = 1.0
+    for _ in range(100):
+        meio = (baixo + alto) / 2
+        valor, *_ = func(vp, pmt, meio * 100, n_meses)
+        if valor < target:
+            baixo = meio
+        else:
+            alto = meio
+    return meio * 100
+
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -122,13 +136,14 @@ def main():
     vl_fundos, saldo_fundos = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)
 
     df_resultados = pd.DataFrame({
+    'Ordem': [1, 2, 3],
         'Modalidade': ['Previdência VGBL', 'Renda Fixa', 'Fundos de Investimento'],
         'Valor Líquido Final (R$)': [formatar_reais(vl_prev), formatar_reais(vl_rf), formatar_reais(vl_fundos)],
         'IR Total (R$)': [formatar_reais(ir_prev), formatar_reais((vl_rf - (vp + pmt * n_meses)) * 0.15), formatar_reais((vl_fundos - (vp + pmt * n_meses)) * 0.15)]
     })
 
     st.subheader("📋 Resultados Comparativos")
-    st.dataframe(df_resultados, use_container_width=True)
+    st.dataframe(df_resultados.set_index('Ordem'), use_container_width=True)
 
     df_evolucao = pd.DataFrame({
         'Mês': list(range(1, n_meses + 1)),
@@ -143,6 +158,14 @@ def main():
     fig.add_trace(go.Scatter(x=df_evolucao['Mês'], y=df_evolucao['Fundos'], name='Fundos'))
     fig.update_layout(title="Evolução dos Investimentos", xaxis_title="Meses", yaxis_title="Valor (R$)")
     st.plotly_chart(fig, use_container_width=True)
+
+    st.subheader("📊 Rentabilidade Bruta Necessária para Igualar à Previdência")
+    df_equiv = pd.DataFrame({
+        'Modalidade': ['Renda Fixa', 'Fundos de Investimento'],
+        'Taxa Bruta Anual Equivalente (%)': [round(taxa_eq_rf, 2), round(taxa_eq_fundos, 2)]
+    }, index=[1, 2])
+    st.dataframe(df_equiv, use_container_width=True)
+
 
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
