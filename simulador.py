@@ -396,31 +396,6 @@ vl_fundos, *_ = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)
 economia_rf = vl_prev - vl_rf
 economia_fundos = vl_prev - vl_fundos
 
-st.subheader("💬 Vantagem Tributária Estimada")
-st.markdown(f"➡️ Ao optar pela **previdência**, você economizaria aproximadamente **R$ {economia_rf:,.0f}** em relação à renda fixa, e **R$ {economia_fundos:,.0f}** em relação aos fundos tradicionais, no final do período.")
-
-
-st.dataframe(df_resultados, use_container_width=True)
-
-st.subheader("📈 Evolução do Capital Líquido")
-fig = go.Figure()
-fig.add_trace(go.Scatter(y=saldo_prev, mode='lines', name='Previdência'))
-fig.add_trace(go.Scatter(y=saldo_rf, mode='lines', name='Renda Fixa'))
-fig.add_trace(go.Scatter(y=saldo_fundos, mode='lines', name='Fundos'))
-fig.update_layout(
-    xaxis_title="Meses",
-    yaxis_title="Saldo Acumulado Líquido (R$)",
-    hovermode="x unified",
-    yaxis_tickprefix="R$ ",
-    yaxis_tickformat=",."
-)
-fig.update_traces(hovertemplate="R$ %{y:,.0f}")
-st.plotly_chart(fig, use_container_width=True)
-
-# Quadro de rentabilidade bruta equivalente (posicionado após o gráfico)
-st.subheader("📐 Rentabilidade Bruta Equivalente")
-st.write("Para que os investimentos em Renda Fixa ou Fundos entreguem o mesmo valor líquido da Previdência, as taxas brutas necessárias seriam:")
-
 df_equiv = pd.DataFrame({
     'Modalidade': ['Previdência (referência)', 'Renda Fixa', 'Fundos de Investimento'],
     'Rentabilidade Anual Necessária (%)': [
@@ -440,10 +415,6 @@ economia_fundos = vl_prev - vl_fundos
 rf_str = formatar(economia_rf)
 fundos_str = formatar(economia_fundos)
 
-st.subheader("💬 Vantagem Tributária Estimada")
-st.write(f"Ao final do período, a previdência resultaria em um ganho líquido de {rf_str} a mais que a renda fixa, e {fundos_str} a mais que os fundos de investimento, considerando a mesma rentabilidade bruta.")
-
-
 # Quadro de rentabilidade bruta equivalente (posicionado após o gráfico)
 
 
@@ -453,10 +424,7 @@ vl_fundos, *_ = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)
 economia_rf = vl_prev - vl_rf
 economia_fundos = vl_prev - vl_fundos
 
-st.subheader("💬 Vantagem Tributária Estimada")
-st.write(
-    "Ao final do período, a previdência resultaria em um ganho líquido de "
-    + formatar(economia_rf) + " a mais que a renda fixa, e "
+ + " a mais que a renda fixa, e "
     + formatar(economia_fundos) + " a mais que os fundos de investimento, "
     "considerando a mesma rentabilidade bruta."
 )
@@ -471,10 +439,7 @@ vl_fundos, *_ = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)
 economia_rf = vl_prev - vl_rf
 economia_fundos = vl_prev - vl_fundos
 
-st.subheader("💬 Vantagem Tributária Estimada")
-st.write(
-    "Ao final do período, a previdência resultaria em um ganho líquido de "
-    + formatar(economia_rf) + " a mais que a renda fixa, e "
+ + " a mais que a renda fixa, e "
     + formatar(economia_fundos) + " a mais que os fundos de investimento, "
     "considerando a mesma rentabilidade bruta."
 )
