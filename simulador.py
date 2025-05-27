@@ -1,4 +1,4 @@
-# Simulador Web de Projeção de Capital com Impacto Tributário - Versão Corrigida e Estável
+# Simulador Web de Projeção de Capital com Impacto Tributário - Versão com Gráfico Líquido
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -9,12 +9,14 @@ from datetime import datetime
 def calcular_previdencia(vp, pmt, taxa_mensal, n_meses):
     saldo = vp
     saldos = []
-    for _ in range(n_meses):
+    for i in range(n_meses):
         saldo *= (1 + taxa_mensal)
         saldo += pmt
         saldos.append(saldo)
     rendimento = saldo - (vp + pmt * n_meses)
-    return saldo - rendimento * 0.10, saldos
+    saldo_liquido = saldo - rendimento * 0.10
+    saldos[-1] = saldo_liquido
+    return saldo_liquido, saldos
 
 def calcular_renda_fixa(vp, pmt, taxa_mensal, n_anos, ciclo_anos):
     saldo = vp
@@ -31,7 +33,11 @@ def calcular_renda_fixa(vp, pmt, taxa_mensal, n_anos, ciclo_anos):
             saldo -= rendimento * 0.15
             vp = saldo
             total_aportes = 0
-    return saldo, saldos
+    # Descontar IR final se necessário
+    rendimento_final = saldo - (vp + total_aportes)
+    saldo_liquido = saldo - rendimento_final * 0.15
+    saldos[-1] = saldo_liquido
+    return saldo_liquido, saldos
 
 def calcular_fundos(vp, pmt, taxa_mensal, n_meses):
     saldo = vp
@@ -49,8 +55,9 @@ def calcular_fundos(vp, pmt, taxa_mensal, n_meses):
         saldos.append(saldo)
     rendimento_bruto = saldo - total_aportado
     imposto_final = (rendimento_bruto * 0.15) - saldo_tributado
-    saldo -= imposto_final
-    return saldo, saldos
+    saldo_liquido = saldo - imposto_final
+    saldos[-1] = saldo_liquido
+    return saldo_liquido, saldos
 
 def formatar_reais(valor):
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -80,14 +87,14 @@ df_resultados = pd.DataFrame({
 st.subheader("📋 Resultados Comparativos")
 st.dataframe(df_resultados, use_container_width=True)
 
-st.subheader("📈 Evolução do Capital Acumulado")
+st.subheader("📈 Evolução do Capital Líquido")
 fig = go.Figure()
 fig.add_trace(go.Scatter(y=saldo_prev, mode='lines', name='Previdência'))
 fig.add_trace(go.Scatter(y=saldo_rf, mode='lines', name='Renda Fixa'))
 fig.add_trace(go.Scatter(y=saldo_fundos, mode='lines', name='Fundos'))
 fig.update_layout(
     xaxis_title="Meses",
-    yaxis_title="Saldo Acumulado (R$)",
+    yaxis_title="Saldo Acumulado Líquido (R$)",
     hovermode="x unified",
     yaxis_tickprefix="R$ ",
     yaxis_tickformat=",."
@@ -121,4 +128,6 @@ st.markdown("""
 > - A simulação dos **Fundos** considera come-cotas e IR final, mas não separa cotas individualizadas. Pode **subestimar o valor líquido final em até 2,5%**.
 > - A **Renda Fixa** assume reaplicação em blocos de ciclo definido, com IR ao final. Pode **superestimar o valor líquido em até 2%**.
 > - A **Previdência** é simulada com IR de 10% sobre rendimento ao final, sem come-cotas.
+> 
+> ✅ O gráfico exibe **valores líquidos**, considerando a dedução dos impostos no último período.
 """)
