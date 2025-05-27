@@ -59,6 +59,109 @@ def encontrar_taxa_equivalente(funcao, vp, pmt, target, n_meses, n_anos=None, ci
         else:
             taxa_alta = taxa_media
     return (1 + taxa_media) ** 12 - 1  # retorna taxa anual equivalente
+
+def calcular_previdencia_regressiva(vp, pmt, taxa_mensal, n_meses):
+    cotas = [{'valor': vp, 'rendimento': 0, 'mes_entrada': 0}]
+    saldos = []
+    total_aportado = vp
+
+    for i in range(1, n_meses + 1):
+        for lote in cotas:
+            rendimento = lote['valor'] * taxa_mensal
+            lote['valor'] += rendimento
+            lote['rendimento'] += rendimento
+
+        if pmt > 0:
+            cotas.append({'valor': pmt, 'rendimento': 0, 'mes_entrada': i})
+            total_aportado += pmt
+
+        saldos.append(sum(l['valor'] for l in cotas))
+
+    def aliquota(meses):
+        if meses <= 24:
+            return 0.35
+        elif meses <= 48:
+            return 0.30
+        elif meses <= 72:
+            return 0.25
+        elif meses <= 96:
+            return 0.20
+        elif meses <= 120:
+            return 0.15
+        else:
+            return 0.10
+
+    ir_total = 0
+    for lote in cotas:
+        tempo = n_meses - lote['mes_entrada']
+        ir = lote['rendimento'] * aliquota(tempo)
+        lote['valor'] -= ir
+        ir_total += ir
+
+    saldo_liquido = sum(l['valor'] for l in cotas)
+    saldos[-1] = saldo_liquido
+    return round(saldo_liquido, 2), saldos, round(ir_total, 2)
+
+def calcular_vl_previdencia(vp, pmt, taxa_mensal, n_meses):
+    saldo = vp
+    for _ in range(n_meses):
+        saldo *= (1 + taxa_mensal)
+        saldo += pmt
+    rendimento = saldo - (vp + pmt * n_meses)
+    return saldo - rendimento * 0.10  # IR de 10%
+
+def calcular_vl_renda_fixa(vp, pmt, taxa_mensal, n_anos, ciclo_anos):
+    saldo = vp
+    total_aportes = 0
+    for ano in range(n_anos):
+        for _ in range(12):
+            saldo *= (1 + taxa_mensal)
+            saldo += pmt
+            total_aportes += pmt
+        if (ano + 1) % ciclo_anos == 0:
+            rendimento = saldo - (vp + total_aportes)
+            saldo -= rendimento * 0.15
+            vp = saldo
+            total_aportes = 0
+    rendimento_final = saldo - (vp + total_aportes)
+    return saldo - rendimento_final * 0.15
+
+def calcular_vl_fundos(vp, pmt, taxa_mensal, n_meses):
+    cotas = [{'valor': vp, 'rendimento_nt': 0, 'mes_entrada': 0}]
+    total_aportado = vp
+    for i in range(1, n_meses + 1):
+        for lote in cotas:
+            rendimento = lote['valor'] * taxa_mensal
+            lote['valor'] += rendimento
+            lote['rendimento_nt'] += rendimento
+        if pmt > 0:
+            cotas.append({'valor': pmt, 'rendimento_nt': 0, 'mes_entrada': i})
+            total_aportado += pmt
+        if i % 12 == 5 or i % 12 == 11:
+            for lote in cotas:
+                imposto = lote['rendimento_nt'] * 0.15
+                lote['valor'] -= imposto
+                lote['rendimento_nt'] = 0
+    rendimento_nt_total = sum([l['rendimento_nt'] for l in cotas])
+    imposto_final = rendimento_nt_total * 0.15
+    saldo_liquido = sum([l['valor'] for l in cotas]) - imposto_final
+    return saldo_liquido
+
+def encontrar_taxa_equivalente(funcao, vp, pmt, target, n_meses, n_anos=None, ciclo=None):
+    taxa_baixa = 0.0001
+    taxa_alta = 1.0
+    precisao = 0.00001
+    while taxa_alta - taxa_baixa > precisao:
+        taxa_media = (taxa_baixa + taxa_alta) / 2
+        if funcao == calcular_vl_renda_fixa:
+            resultado = funcao(vp, pmt, taxa_media, n_anos, ciclo)
+        else:
+            resultado = funcao(vp, pmt, taxa_media, n_meses)
+        if resultado < target:
+            taxa_baixa = taxa_media
+        else:
+            taxa_alta = taxa_media
+    return (1 + taxa_media) ** 12 - 1  # retorna taxa anual equivalente
 # Simulador com controle refinado de cotas e IR final preciso
 import streamlit as st
 import numpy as np
@@ -154,7 +257,10 @@ with st.sidebar.expander("🔧 Parâmetros de Entrada", expanded=True):
 n_meses = int(n_anos * 12)
 taxa_mensal = (1 + taxa_anual / 100) ** (1 / 12) - 1
 
-vl_prev, saldo_prev = calcular_previdencia(vp, pmt, taxa_mensal, n_meses)
+
+# Cálculo da nova previdência regressiva
+vl_prev, saldo_prev, ir_prev_total = calcular_previdencia_regressiva(vp, pmt, taxa_mensal, n_meses)
+
 vl_rf, saldo_rf = calcular_renda_fixa(vp, pmt, taxa_mensal, int(n_anos), int(ciclo))
 vl_fundos, saldo_fundos = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)
 
@@ -184,6 +290,16 @@ df_equiv = pd.DataFrame({
     ]
 })
 st.dataframe(df_equiv, use_container_width=True)
+
+# Frase automática de apoio
+vl_rf, *_ = calcular_renda_fixa(vp, pmt, taxa_mensal, int(n_anos), int(ciclo))
+vl_fundos, *_ = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)
+economia_rf = vl_prev - vl_rf
+economia_fundos = vl_prev - vl_fundos
+
+st.subheader("💬 Vantagem Tributária Estimada")
+st.markdown(f"➡️ Ao optar pela **previdência**, você economizaria aproximadamente **R$ {economia_rf:,.0f}** em relação à renda fixa, e **R$ {economia_fundos:,.0f}** em relação aos fundos tradicionais, no final do período.")
+
 
 st.dataframe(df_resultados, use_container_width=True)
 
