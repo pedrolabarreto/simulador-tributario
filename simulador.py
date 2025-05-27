@@ -1,3 +1,64 @@
+
+def calcular_vl_previdencia(vp, pmt, taxa_mensal, n_meses):
+    saldo = vp
+    for _ in range(n_meses):
+        saldo *= (1 + taxa_mensal)
+        saldo += pmt
+    rendimento = saldo - (vp + pmt * n_meses)
+    return saldo - rendimento * 0.10  # IR de 10%
+
+def calcular_vl_renda_fixa(vp, pmt, taxa_mensal, n_anos, ciclo_anos):
+    saldo = vp
+    total_aportes = 0
+    for ano in range(n_anos):
+        for _ in range(12):
+            saldo *= (1 + taxa_mensal)
+            saldo += pmt
+            total_aportes += pmt
+        if (ano + 1) % ciclo_anos == 0:
+            rendimento = saldo - (vp + total_aportes)
+            saldo -= rendimento * 0.15
+            vp = saldo
+            total_aportes = 0
+    rendimento_final = saldo - (vp + total_aportes)
+    return saldo - rendimento_final * 0.15
+
+def calcular_vl_fundos(vp, pmt, taxa_mensal, n_meses):
+    cotas = [{'valor': vp, 'rendimento_nt': 0, 'mes_entrada': 0}]
+    total_aportado = vp
+    for i in range(1, n_meses + 1):
+        for lote in cotas:
+            rendimento = lote['valor'] * taxa_mensal
+            lote['valor'] += rendimento
+            lote['rendimento_nt'] += rendimento
+        if pmt > 0:
+            cotas.append({'valor': pmt, 'rendimento_nt': 0, 'mes_entrada': i})
+            total_aportado += pmt
+        if i % 12 == 5 or i % 12 == 11:
+            for lote in cotas:
+                imposto = lote['rendimento_nt'] * 0.15
+                lote['valor'] -= imposto
+                lote['rendimento_nt'] = 0
+    rendimento_nt_total = sum([l['rendimento_nt'] for l in cotas])
+    imposto_final = rendimento_nt_total * 0.15
+    saldo_liquido = sum([l['valor'] for l in cotas]) - imposto_final
+    return saldo_liquido
+
+def encontrar_taxa_equivalente(funcao, vp, pmt, target, n_meses, n_anos=None, ciclo=None):
+    taxa_baixa = 0.0001
+    taxa_alta = 1.0
+    precisao = 0.00001
+    while taxa_alta - taxa_baixa > precisao:
+        taxa_media = (taxa_baixa + taxa_alta) / 2
+        if funcao == calcular_vl_renda_fixa:
+            resultado = funcao(vp, pmt, taxa_media, n_anos, ciclo)
+        else:
+            resultado = funcao(vp, pmt, taxa_media, n_meses)
+        if resultado < target:
+            taxa_baixa = taxa_media
+        else:
+            taxa_alta = taxa_media
+    return (1 + taxa_media) ** 12 - 1  # retorna taxa anual equivalente
 # Simulador com controle refinado de cotas e IR final preciso
 import streamlit as st
 import numpy as np
@@ -105,26 +166,6 @@ df_resultados = pd.DataFrame({
 st.subheader("📋 Resultados Comparativos")
 st.dataframe(df_resultados, use_container_width=True)
 
-# Cálculo da taxa de equivalência
-with st.spinner("Calculando taxa de equivalência..."):
-    taxa_mensal_prev = (1 + taxa_anual / 100) ** (1 / 12) - 1
-    vl_prev_target = calcular_previdencia(vp, pmt, taxa_mensal_prev, n_meses)[0]
-    taxa_rf_equivalente = encontrar_taxa_equivalente(calcular_vl_renda_fixa, vp, pmt, vl_prev_target, n_meses, int(n_anos), int(ciclo))
-    taxa_fundos_equivalente = encontrar_taxa_equivalente(calcular_vl_fundos, vp, pmt, vl_prev_target, n_meses)
-
-    st.subheader("📐 Rentabilidade Bruta Equivalente")
-    st.write("Para que os investimentos em Renda Fixa ou Fundos entreguem o mesmo valor líquido da Previdência, as taxas brutas necessárias seriam:")
-
-    df_equiv = pd.DataFrame({
-        'Modalidade': ['Previdência (referência)', 'Renda Fixa', 'Fundos de Investimento'],
-        'Rentabilidade Anual Necessária (%)': [
-            round(taxa_anual, 2),
-            round(taxa_rf_equivalente * 100, 2),
-            round(taxa_fundos_equivalente * 100, 2)
-        ]
-    })
-    st.dataframe(df_equiv, use_container_width=True)
-
 st.subheader("📈 Evolução do Capital Líquido")
 fig = go.Figure()
 fig.add_trace(go.Scatter(y=saldo_prev, mode='lines', name='Previdência'))
@@ -169,64 +210,3 @@ st.markdown("""
 > 
 > 📊 O gráfico e a tabela representam **valores líquidos reais**, sem saltos artificiais.
 """)
-def calcular_vl_previdencia(vp, pmt, taxa_mensal, n_meses):
-    saldo = vp
-    for _ in range(n_meses):
-        saldo *= (1 + taxa_mensal)
-        saldo += pmt
-    rendimento = saldo - (vp + pmt * n_meses)
-    return saldo - rendimento * 0.10  # IR de 10%
-
-def calcular_vl_renda_fixa(vp, pmt, taxa_mensal, n_anos, ciclo_anos):
-    saldo = vp
-    total_aportes = 0
-    for ano in range(n_anos):
-        for _ in range(12):
-            saldo *= (1 + taxa_mensal)
-            saldo += pmt
-            total_aportes += pmt
-        if (ano + 1) % ciclo_anos == 0:
-            rendimento = saldo - (vp + total_aportes)
-            saldo -= rendimento * 0.15
-            vp = saldo
-            total_aportes = 0
-    rendimento_final = saldo - (vp + total_aportes)
-    return saldo - rendimento_final * 0.15
-
-def calcular_vl_fundos(vp, pmt, taxa_mensal, n_meses):
-    cotas = [{'valor': vp, 'rendimento_nt': 0, 'mes_entrada': 0}]
-    total_aportado = vp
-    for i in range(1, n_meses + 1):
-        for lote in cotas:
-            rendimento = lote['valor'] * taxa_mensal
-            lote['valor'] += rendimento
-            lote['rendimento_nt'] += rendimento
-        if pmt > 0:
-            cotas.append({'valor': pmt, 'rendimento_nt': 0, 'mes_entrada': i})
-            total_aportado += pmt
-        if i % 12 == 5 or i % 12 == 11:
-            for lote in cotas:
-                imposto = lote['rendimento_nt'] * 0.15
-                lote['valor'] -= imposto
-                lote['rendimento_nt'] = 0
-    rendimento_nt_total = sum([l['rendimento_nt'] for l in cotas])
-    imposto_final = rendimento_nt_total * 0.15
-    saldo_liquido = sum([l['valor'] for l in cotas]) - imposto_final
-    return saldo_liquido
-
-def encontrar_taxa_equivalente(funcao, vp, pmt, target, n_meses, n_anos=None, ciclo=None):
-    taxa_baixa = 0.0001
-    taxa_alta = 1.0
-    precisao = 0.00001
-    while taxa_alta - taxa_baixa > precisao:
-        taxa_media = (taxa_baixa + taxa_alta) / 2
-        if funcao == calcular_vl_renda_fixa:
-            resultado = funcao(vp, pmt, taxa_media, n_anos, ciclo)
-        else:
-            resultado = funcao(vp, pmt, taxa_media, n_meses)
-        if resultado < target:
-            taxa_baixa = taxa_media
-        else:
-            taxa_alta = taxa_media
-    return (1 + taxa_media) ** 12 - 1  # retorna taxa anual equivalente
-
