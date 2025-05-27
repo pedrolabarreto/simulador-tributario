@@ -1,4 +1,4 @@
-# Simulador Web de Projeção de Capital com Impacto Tributário - Versão Corrigida
+# Simulador Web de Projeção de Capital com Impacto Tributário - Versão Corrigida e Estável
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -6,7 +6,6 @@ import plotly.graph_objects as go
 import io
 from datetime import datetime
 
-# Funções
 def calcular_previdencia(vp, pmt, taxa_mensal, n_meses):
     saldo = vp
     saldos = []
@@ -56,7 +55,6 @@ def calcular_fundos(vp, pmt, taxa_mensal, n_meses):
 def formatar_reais(valor):
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# Streamlit App
 st.set_page_config(page_title="Simulador Tributário", layout="wide")
 st.title("📊 Simulador de Projeção de Capital - Impacto Tributário")
 
@@ -70,12 +68,10 @@ with st.sidebar.expander("🔧 Parâmetros de Entrada", expanded=True):
 n_meses = int(n_anos * 12)
 taxa_mensal = (1 + taxa_anual / 100) ** (1 / 12) - 1
 
-# Cálculos
 vl_prev, saldo_prev = calcular_previdencia(vp, pmt, taxa_mensal, n_meses)
 vl_rf, saldo_rf = calcular_renda_fixa(vp, pmt, taxa_mensal, int(n_anos), int(ciclo))
 vl_fundos, saldo_fundos = calcular_fundos(vp, pmt, taxa_mensal, n_meses)
 
-# Tabela de resultados
 df_resultados = pd.DataFrame({
     'Modalidade': ['Previdência VGBL', 'Renda Fixa', 'Fundos de Investimento'],
     'Valor Líquido Final (R$)': [formatar_reais(vl_prev), formatar_reais(vl_rf), formatar_reais(vl_fundos)],
@@ -84,7 +80,6 @@ df_resultados = pd.DataFrame({
 st.subheader("📋 Resultados Comparativos")
 st.dataframe(df_resultados, use_container_width=True)
 
-# Gráfico com Plotly
 st.subheader("📈 Evolução do Capital Acumulado")
 fig = go.Figure()
 fig.add_trace(go.Scatter(y=saldo_prev, mode='lines', name='Previdência'))
@@ -97,9 +92,9 @@ fig.update_layout(
     yaxis_tickprefix="R$ ",
     yaxis_tickformat=",."
 )
+fig.update_traces(hovertemplate="R$ %{y:,.0f}")
 st.plotly_chart(fig, use_container_width=True)
 
-# Exportação para Excel
 df_export = pd.DataFrame({
     'Mes': list(range(1, n_meses + 1)),
     'Previdência': saldo_prev,
@@ -111,6 +106,7 @@ buffer = io.BytesIO()
 with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
     df_export.to_excel(writer, sheet_name='Evolucao', index=False)
     pd.DataFrame(df_resultados).to_excel(writer, sheet_name='Resumo', index=False)
+buffer.seek(0)
 
 st.download_button(
     label="📥 Baixar Excel com Resultados",
@@ -119,7 +115,6 @@ st.download_button(
     mime="application/vnd.ms-excel"
 )
 
-# Nota de rodapé
 st.markdown("""
 > ⚠️ **Nota sobre precisão**:
 > 
