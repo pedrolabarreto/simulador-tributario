@@ -1,5 +1,4 @@
 
-def formatar(valor):
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
@@ -106,7 +105,6 @@ def calcular_previdencia_regressiva(vp, pmt, taxa_mensal, n_meses):
     saldos[-1] = saldo_liquido
     return round(saldo_liquido, 2), saldos, round(ir_total, 2)
 
-def formatar(valor):
     return f"R$ {valor:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def calcular_vl_previdencia(vp, pmt, taxa_mensal, n_meses):
@@ -393,8 +391,6 @@ taxa_fundos_equivalente = encontrar_taxa_equivalente(calcular_vl_fundos, vp, pmt
 # Frase automática de apoio
 vl_rf, *_ = calcular_renda_fixa(vp, pmt, taxa_mensal, int(n_anos), int(ciclo))
 vl_fundos, *_ = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)
-economia_rf = vl_prev - vl_rf
-economia_fundos = vl_prev - vl_fundos
 
 df_equiv = pd.DataFrame({
     'Modalidade': ['Previdência (referência)', 'Renda Fixa', 'Fundos de Investimento'],
@@ -409,25 +405,6 @@ st.dataframe(df_equiv, use_container_width=True)
 # Frase automática de apoio com valores formatados
 vl_rf, *_ = calcular_renda_fixa(vp, pmt, taxa_mensal, int(n_anos), int(ciclo))
 vl_fundos, *_ = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)
-economia_rf = vl_prev - vl_rf
-economia_fundos = vl_prev - vl_fundos
-
-rf_str = formatar(economia_rf)
-fundos_str = formatar(economia_fundos)
-
-# Quadro de rentabilidade bruta equivalente (posicionado após o gráfico)
-
-
-# Frase automática de apoio com valores formatados
-vl_rf, *_ = calcular_renda_fixa(vp, pmt, taxa_mensal, int(n_anos), int(ciclo))
-vl_fundos, *_ = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)
-economia_rf = vl_prev - vl_rf
-economia_fundos = vl_prev - vl_fundos
-
- + " a mais que a renda fixa, e "
-    + formatar(economia_fundos) + " a mais que os fundos de investimento, "
-    "considerando a mesma rentabilidade bruta."
-)
 
 
 # Quadro de rentabilidade bruta equivalente (posicionado após o gráfico)
@@ -436,13 +413,18 @@ economia_fundos = vl_prev - vl_fundos
 # Frase automática de apoio com valores formatados
 vl_rf, *_ = calcular_renda_fixa(vp, pmt, taxa_mensal, int(n_anos), int(ciclo))
 vl_fundos, *_ = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)
-economia_rf = vl_prev - vl_rf
-economia_fundos = vl_prev - vl_fundos
 
- + " a mais que a renda fixa, e "
-    + formatar(economia_fundos) + " a mais que os fundos de investimento, "
     "considerando a mesma rentabilidade bruta."
-)
+
+
+# Quadro de rentabilidade bruta equivalente (posicionado após o gráfico)
+
+
+# Frase automática de apoio com valores formatados
+vl_rf, *_ = calcular_renda_fixa(vp, pmt, taxa_mensal, int(n_anos), int(ciclo))
+vl_fundos, *_ = calcular_fundos_cotas_preciso(vp, pmt, taxa_mensal, n_meses)
+
+    "considerando a mesma rentabilidade bruta."
 
 
 df_export = pd.DataFrame({
@@ -463,7 +445,6 @@ st.download_button(
     data=buffer,
     file_name=f"simulador_tributario_{datetime.today().date()}.xlsx",
     mime="application/vnd.ms-excel"
-)
 
 st.markdown("""
 > ✅ Agora com **cálculo exato dos fundos de investimento**, aplicando:
