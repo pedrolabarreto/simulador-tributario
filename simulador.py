@@ -165,7 +165,7 @@ def main():
     st.subheader('📊 Rentabilidade Bruta Necessária para Igualar à Previdência')
     df_eq = pd.DataFrame({
         'Modalidade': ['Renda Fixa', 'Fundos de Investimento'],
-    'Taxa Bruta Anual Equivalente (%)': [f"{taxa_eq_rf * 100:.2f}%", f"{taxa_eq_fundos * 100:.2f}%"]
+    'Taxa Bruta Anual Equivalente (%)': [f"{taxa_eq_rf:.2f}%", f"{taxa_eq_fundos:.2f}%"]
     }, index=[1, 2])
     st.dataframe(df_eq, use_container_width=True)
 
