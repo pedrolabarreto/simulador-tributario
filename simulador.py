@@ -109,7 +109,7 @@ def encontrar_taxa_equivalente(func, vp, pmt, target, *args):
     alto = 1.0
     for _ in range(100):
         meio = (baixo + alto) / 2
-        valor, *_ = func(vp, pmt, meio * 100, *args)
+        valor, *_ = func(vp, pmt, meio, *args)
         if valor < target:
             baixo = meio
         else:
@@ -165,8 +165,7 @@ def main():
     st.subheader('📊 Rentabilidade Bruta Necessária para Igualar à Previdência')
     df_eq = pd.DataFrame({
         'Modalidade': ['Renda Fixa', 'Fundos de Investimento'],
-        'Taxa Bruta Anual Equivalente (%)': [round(taxa_eq_rf, 2), round(taxa_eq_fundos, 2)]
-    }, index=[1, 2])
+        'Taxa Bruta Anual Equivalente (%)': [f"{taxa_eq_rf * 100:.2f}%", f"{taxa_eq_fundos * 100:.2f}%"]    }, index=[1, 2])
     st.dataframe(df_eq, use_container_width=True)
 
     buffer = io.BytesIO()
