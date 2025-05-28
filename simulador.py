@@ -103,19 +103,6 @@ def calcular_renda_fixa(vp, pmt, taxa_mensal, n_anos, ciclo_anos):
 def formatar_reais(valor):
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-
-def encontrar_taxa_equivalente(func, vp, pmt, target, *args):
-    baixo = 0.0001
-    alto = 1.0
-    for _ in range(100):
-        meio = (baixo + alto) / 2
-        valor, *_ = func(vp, pmt, meio * 100, *args)
-        if valor < target:
-            baixo = meio
-        else:
-            alto = meio
-    return meio * 100
-
 def main():
     st.set_page_config(page_title="Simulador Tributário", layout="wide")
     st.title("📊 Simulador de Projeção de Capital - Impacto Tributário")
@@ -156,18 +143,6 @@ def main():
     fig.add_trace(go.Scatter(x=df_evolucao['Mês'], y=df_evolucao['Fundos'], name='Fundos'))
     fig.update_layout(title="Evolução dos Investimentos", xaxis_title="Meses", yaxis_title="Valor (R$)")
     st.plotly_chart(fig, use_container_width=True)
-    # Calcular taxas equivalentes
-
-    taxa_eq_rf = encontrar_taxa_equivalente(calcular_renda_fixa, vp, pmt, vl_prev, int(n_anos), ciclo)
-
-    taxa_eq_fundos = encontrar_taxa_equivalente(calcular_fundos_cotas_preciso, vp, pmt, vl_prev, int(n_anos))
-
-    st.subheader('📊 Rentabilidade Bruta Necessária para Igualar à Previdência')
-    df_eq = pd.DataFrame({
-        'Modalidade': ['Renda Fixa', 'Fundos de Investimento'],
-    'Taxa Bruta Anual Equivalente (%)': [f"{taxa_eq_rf:.2f}%", f"{taxa_eq_fundos:.2f}%"]
-    }, index=[1, 2])
-    st.dataframe(df_eq, use_container_width=True)
 
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
