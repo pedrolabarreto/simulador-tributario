@@ -32,7 +32,8 @@ def aliquota_vgbl(meses):
     else:
         return 0.10
 
-# === Simulações por lote ===
+# === Simulações por lote com caching ===
+@st.cache_data(show_spinner=False)
 def simular_fundo_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos):
     meses_totais = prazo_anos * 12
     taxa_mensal = (1 + taxa_anual)**(1/12) - 1
@@ -65,6 +66,7 @@ def simular_fundo_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_an
     valor_final = historico[-1]
     return historico, valor_final, imposto_total
 
+@st.cache_data(show_spinner=False)
 def simular_rf_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos, ciclo_anos):
     meses_totais = prazo_anos * 12
     taxa_mensal = (1 + taxa_anual)**(1/12) - 1
@@ -106,6 +108,7 @@ def simular_rf_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos,
     valor_final = historico[-1]
     return historico, valor_final, imposto_total
 
+@st.cache_data(show_spinner=False)
 def simular_vgbl_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos):
     meses_totais = prazo_anos * 12
     taxa_mensal = (1 + taxa_anual)**(1/12) - 1
@@ -205,7 +208,7 @@ else:
     c4, c5, c6 = st.columns(3)
     c4.write(f"Fundo: R$ {imp_fundo:,.2f}")
     c5.write(f"Renda Fixa: R$ {imp_rf:,.2f}")
-    c6.write(f"VGBL: R$ {imp_vgbl:,.2f}")
+    c6.write(f"VGBL: R$ {imp_vgbl:.,2f}")
 
     meses = np.arange(0, prazo_anos * 12 + 1)
     df_evolucao = pd.DataFrame({
@@ -228,9 +231,4 @@ else:
     })
     st.table(df_taxas)
 
-    st.markdown(
-        """
-        **Explicação**  
-        - As **taxas necessárias** foram calculadas via bisseção para cada modalidade, mantendo todos os demais parâmetros fixos, de modo que o valor final líquido fosse igual ao do VGBL.  
-        """
-    )
+    st.success("Cálculo concluído com sucesso!")
