@@ -1,236 +1,305 @@
+# app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
 
 st.set_page_config(layout="wide")
-st.title("Simulador de Investimentos: Fundo Longo Prazo, Renda Fixa e VGBL")
+st.title("Simulador Tributário: Fundo Longo Prazo, Renda Fixa e VGBL (lotes)")
 
-# === Sidebar: parâmetros de entrada ===
-st.sidebar.header("Parâmetros Gerais")
+# === Funções auxiliares para alíquotas regressivas ===
+def aliquota_regressiva(meses):
+    """
+    Tabela regressiva de IR (Fundo e Renda Fixa, em lote):
+    0–6 meses: 22.5%
+    6–12 meses: 20%
+    12–24 meses: 17.5%
+    >24 meses: 15%
+    """
+    if meses <= 6:
+        return 0.225
+    elif meses <= 12:
+        return 0.20
+    elif meses <= 24:
+        return 0.175
+    else:
+        return 0.15
 
-# Valor inicial
-valor_inicial = st.sidebar.number_input(
-    "Valor inicial aplicado (R$):", 
-    min_value=0.0, 
-    value=10000.0, 
-    step=1000.0, 
-    format="%.2f"
-)
+def aliquota_vgbl(meses):
+    """
+    Tabela regressiva de IR para VGBL (resgate, por lote) baseada no tempo total:
+    Até 2 anos (24 meses): 35%
+    Até 4 anos: 30%
+    Até 6 anos: 25%
+    Até 8 anos: 20%
+    Até 10 anos: 15%
+    Acima de 10 anos: 10%
+    """
+    anos = meses / 12
+    if anos <= 2:
+        return 0.35
+    elif anos <= 4:
+        return 0.30
+    elif anos <= 6:
+        return 0.25
+    elif anos <= 8:
+        return 0.20
+    elif anos <= 10:
+        return 0.15
+    else:
+        return 0.10
 
-# Aportes
-st.sidebar.subheader("Aportes")
-aporte = st.sidebar.number_input(
-    "Valor do aporte periódico (R$):", 
-    min_value=0.0, 
-    value=1000.0, 
-    step=100.0, 
-    format="%.2f"
-)
-frequencia_aporte = st.sidebar.selectbox(
-    "Frequência dos aportes:",
-    ("Mensal", "Anual")
-)
-
-# Taxa de retorno anual (em %)
-taxa_anual = st.sidebar.slider(
-    "Taxa de retorno anual (%):", 
-    min_value=0.0, 
-    max_value=50.0, 
-    value=8.0, 
-    step=0.1
-) / 100.0
-
-# Prazo total em anos
-prazo_anos = st.sidebar.number_input(
-    "Prazo total (anos):", 
-    min_value=1, 
-    max_value=50, 
-    value=10, 
-    step=1
-)
-
-# Ciclo de reinvestimento para renda fixa (em anos)
-st.sidebar.subheader("Renda Fixa")
-ciclo_rf_anos = st.sidebar.number_input(
-    "Ciclo de reinvestimento RF (anos):", 
-    min_value=1, 
-    max_value=10, 
-    value=4, 
-    step=1
-)
-
-# Botão para recalcular
-if st.sidebar.button("Calcular projeções"):
-
-    # === Preparar simulação mês a mês ===
+# === Simulação do Fundo de Investimento (lote a lote) ===
+def simular_fundo_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos):
     meses_totais = prazo_anos * 12
-    # Taxa mensal equivalente (composta)
-    taxa_mensal = (1 + taxa_anual) ** (1/12) - 1
+    taxa_mensal = (1 + taxa_anual)**(1/12) - 1
 
-    # Arrays para armazenar a evolução líquida de cada modalidade
-    serie_fundo = np.zeros(meses_totais + 1)
-    serie_rf = np.zeros(meses_totais + 1)
-    serie_vgbl = np.zeros(meses_totais + 1)
+    # DataFrame para lotes: cada linha é um aporte (incluindo a “inicial”)
+    df = pd.DataFrame(columns=["valor", "base", "mes_aporte"])
+    # Lote inicial:
+    df.loc[0] = [valor_inicial, valor_inicial, 0]
 
-    # 1) Fundo de Investimento (Longo Prazo) com come-cotas semestral
-    portfolio_fundo = valor_inicial
-    # Base que será usada para cálculo de ganho isento até o próximo come-cotas
-    base_come = valor_inicial
-    imposto_pago_fundo = 0.0
+    imposto_total = 0.0
+    historico = []  # guarda o valor total líquido mês a mês
 
-    # 2) Renda Fixa com tributação regressiva e reinvestimento a cada ciclo
-    portfolio_rf = valor_inicial
-    base_rf = valor_inicial
-    imposto_pago_rf = 0.0
-    meses_por_ciclo = ciclo_rf_anos * 12
-
-    # 3) VGBL com tabela regressiva (imposto único no resgate)
-    portfolio_vgbl = valor_inicial
-    soma_aportes_vgbl = 0.0  # para calcular base de imposto ao final
-
-    # === Loop mês a mês ===
     for mes in range(0, meses_totais + 1):
-        # Registrar valores ao longo do tempo
-        serie_fundo[mes] = portfolio_fundo
-        serie_rf[mes] = portfolio_rf
-        serie_vgbl[mes] = portfolio_vgbl
+        # Registrar saldo total no histórico
+        historico.append(df["valor"].sum())
+
+        if mes == meses_totais:
+            # Fim da projeção (não há aporte nem come-cotas neste passo)
+            break
+
+        # 1) Inserir aporte (antes do growth mensal)
+        if freq_aporte == "Mensal":
+            lote = {"valor": aporte, "base": aporte, "mes_aporte": mes}
+            df = df.append(lote, ignore_index=True)
+        elif freq_aporte == "Anual" and mes % 12 == 0 and mes > 0:
+            lote = {"valor": aporte, "base": aporte, "mes_aporte": mes}
+            df = df.append(lote, ignore_index=True)
+
+        # 2) Crescimento mensal de cada lote
+        df["valor"] = df["valor"] * (1 + taxa_mensal)
+
+        # 3) Se for mês de come-cotas (maio [5] ou novembro [11]):
+        mes_do_ano = (mes % 12) + 1
+        if mes_do_ano in (5, 11):
+            # Para cada lote, calcular IR de acordo com holding em meses:
+            for idx, row in df.iterrows():
+                holding = mes - int(row["mes_aporte"])
+                ganho = row["valor"] - row["base"]
+                if ganho > 0:
+                    aliquota = aliquota_regressiva(holding)
+                    imposto = ganho * aliquota
+                    # Subtrair imposto do lote
+                    df.at[idx, "valor"] = row["valor"] - imposto
+                    # Atualizar base para o próximo ciclo
+                    df.at[idx, "base"] = df.at[idx, "valor"]
+                    imposto_total += imposto
+
+    return historico, imposto_total
+
+# === Simulação da Renda Fixa (lote a lote) ===
+def simular_rf_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos, ciclo_anos):
+    meses_totais = prazo_anos * 12
+    taxa_mensal = (1 + taxa_anual)**(1/12) - 1
+    ciclo_meses = ciclo_anos * 12
+
+    df = pd.DataFrame(columns=["valor", "base", "mes_aporte"])
+    df.loc[0] = [valor_inicial, valor_inicial, 0]
+
+    imposto_total = 0.0
+    historico = []
+
+    for mes in range(0, meses_totais + 1):
+        historico.append(df["valor"].sum())
 
         if mes == meses_totais:
             break
 
-        # --- Antes do crescimento mensal: incluir aporte, se for o mês correto ---
-        # Fundo
-        if frequencia_aporte == "Mensal":
-            portfolio_fundo += aporte
-        elif (frequencia_aporte == "Anual") and (mes % 12 == 0) and (mes > 0):
-            portfolio_fundo += aporte
+        # 1) Inserir aporte
+        if freq_aporte == "Mensal":
+            lote = {"valor": aporte, "base": aporte, "mes_aporte": mes}
+            df = df.append(lote, ignore_index=True)
+        elif freq_aporte == "Anual" and mes % 12 == 0 and mes > 0:
+            lote = {"valor": aporte, "base": aporte, "mes_aporte": mes}
+            df = df.append(lote, ignore_index=True)
 
-        # Renda Fixa
-        if frequencia_aporte == "Mensal":
-            portfolio_rf += aporte
-        elif (frequencia_aporte == "Anual") and (mes % 12 == 0) and (mes > 0):
-            portfolio_rf += aporte
+        # 2) Crescimento mensal
+        df["valor"] = df["valor"] * (1 + taxa_mensal)
 
-        # VGBL
-        if frequencia_aporte == "Mensal":
-            portfolio_vgbl += aporte
-            soma_aportes_vgbl += aporte
-        elif (frequencia_aporte == "Anual") and (mes % 12 == 0) and (mes > 0):
-            portfolio_vgbl += aporte
-            soma_aportes_vgbl += aporte
+        # 3) Checa maturidade em relação ao ciclo (cada lote que completar múltiplo exato de ciclo_anos):
+        for idx, row in df.iterrows():
+            holding = mes - int(row["mes_aporte"])
+            # Se houver múltiplo exato de ciclo_meses, tributa-se:
+            if holding > 0 and (holding % ciclo_meses == 0):
+                ganho = row["valor"] - row["base"]
+                if ganho > 0:
+                    aliquota = aliquota_regressiva(holding)
+                    imposto = ganho * aliquota
+                    df.at[idx, "valor"] = row["valor"] - imposto
+                    df.at[idx, "base"] = df.at[idx, "valor"]
+                    imposto_total += imposto
 
-        # --- Crescimento mensal ---
-        portfolio_fundo *= 1 + taxa_mensal
-        portfolio_rf *= 1 + taxa_mensal
-        portfolio_vgbl *= 1 + taxa_mensal
+    # 4) No final, tributar lotes que não completaram um ciclo exato:
+    for idx, row in df.iterrows():
+        holding = meses_totais - int(row["mes_aporte"])
+        # Se não completou o ciclo exato, há IR residual:
+        if holding > 0 and (holding % ciclo_meses != 0):
+            ganho = row["valor"] - row["base"]
+            if ganho > 0:
+                aliquota = aliquota_regressiva(holding)
+                imposto = ganho * aliquota
+                df.at[idx, "valor"] = row["valor"] - imposto
+                imposto_total += imposto
 
-        # --- Eventos de tributação ---
-        # 1) Fundo: come-cotas em maio e novembro (meses 5 e 11 considerando janeiro=1)
-        mes_do_ano = (mes % 12) + 1  # janeiro=1, fevereiro=2, ..., dezembro=12
-        if mes_do_ano in (5, 11):
-            # Ganho desde o último evento
-            ganho = portfolio_fundo - base_come
-            imposto = ganho * 0.15  # 15% para fundo de longo prazo
-            if imposto > 0:
-                portfolio_fundo -= imposto
-                imposto_pago_fundo += imposto
-            base_come = portfolio_fundo  # nova base para o próximo ciclo
+    return historico, imposto_total
 
-        # 2) Renda Fixa: ao final de cada ciclo (em meses_por_ciclo)
-        if (mes > 0) and (mes % meses_por_ciclo == 0):
-            ganho_rf = portfolio_rf - base_rf
-            # Tabela regressiva de IR (em %)
-            # 0-6 meses: 22.5%, 6-12: 20%, 12-24: 17.5%, >24: 15%
-            meses_held = meses_por_ciclo
-            if meses_held <= 6:
-                aliquota = 0.225
-            elif meses_held <= 12:
-                aliquota = 0.20
-            elif meses_held <= 24:
-                aliquota = 0.175
-            else:
-                aliquota = 0.15
-            imposto2 = ganho_rf * aliquota
-            if imposto2 > 0:
-                portfolio_rf -= imposto2
-                imposto_pago_rf += imposto2
-            base_rf = portfolio_rf
+# === Simulação do VGBL (lote a lote) ===
+def simular_vgbl_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos):
+    meses_totais = prazo_anos * 12
+    taxa_mensal = (1 + taxa_anual)**(1/12) - 1
 
-        # 3) VGBL: nao tributa ate o final (resgate), entao nada aqui
+    df = pd.DataFrame(columns=["valor", "mes_aporte"])
+    df.loc[0] = [valor_inicial, 0]
+    historico = []
 
-    # --- Após o loop, cálculo final do imposto sobre VGBL ---
-    # Base de imposto = ganhos totais = portfolio_vgbl - (valor_inicial + soma_aportes_vgbl)
-    ganho_vgbl = portfolio_vgbl - (valor_inicial + soma_aportes_vgbl)
-    # Determinar aliquota regressiva pelo prazo total (prazo_anos)
-    if prazo_anos <= 2:
-        aliquota_vgbl = 0.35
-    elif prazo_anos <= 4:
-        aliquota_vgbl = 0.30
-    elif prazo_anos <= 6:
-        aliquota_vgbl = 0.25
-    elif prazo_anos <= 8:
-        aliquota_vgbl = 0.20
-    elif prazo_anos <= 10:
-        aliquota_vgbl = 0.15
-    else:
-        aliquota_vgbl = 0.10
-    imposto_pago_vgbl = ganho_vgbl * aliquota_vgbl
-    valor_liquido_vgbl = portfolio_vgbl - imposto_pago_vgbl
+    for mes in range(0, meses_totais + 1):
+        historico.append(df["valor"].sum())
+        if mes == meses_totais:
+            break
 
-    # O valor final de cada modalidade (ja liquido de IR):
-    valor_final_fundo = serie_fundo[-1]  # fundo ja foi “zerado” nos eventos de come-cotas
-    valor_final_rf = serie_rf[-1]        # RF ja foi tributado no ciclo final
-    valor_final_vgbl = valor_liquido_vgbl
+        # 1) Inserir aporte
+        if freq_aporte == "Mensal":
+            df = df.append({"valor": aporte, "mes_aporte": mes}, ignore_index=True)
+        elif freq_aporte == "Anual" and mes % 12 == 0 and mes > 0:
+            df = df.append({"valor": aporte, "mes_aporte": mes}, ignore_index=True)
 
-    # === Exibir resultados ---
-    st.subheader("1) Resultados Finais")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Fundo (liquido)", f"R$ {valor_final_fundo:,.2f}")
-    col2.metric("Renda Fixa (liquido)", f"R$ {valor_final_rf:,.2f}")
-    col3.metric("VGBL (liquido)", f"R$ {valor_final_vgbl:,.2f}")
+        # 2) Crescimento mensal
+        df["valor"] = df["valor"] * (1 + taxa_mensal)
 
-    st.subheader("2) Imposto Pago ao Longo do Período")
-    col4, col5, col6 = st.columns(3)
-    col4.write(f"Fundo (come-cotas): R$ {imposto_pago_fundo:,.2f}")
-    col5.write(f"Renda Fixa: R$ {imposto_pago_rf:,.2f}")
-    col6.write(f"VGBL (resgate): R$ {imposto_pago_vgbl:,.2f}")
+    # 3) No final, tributar cada lote de acordo com o tempo de holding até meses_totais
+    imposto_total = 0.0
+    valor_final = 0.0
+    for idx, row in df.iterrows():
+        holding = meses_totais - int(row["mes_aporte"])
+        aliquota = aliquota_vgbl(holding)
+        # Calcular a parcela de ganho deste lote:
+        # Se valor atual é V e holding = h meses, então valor investido bruto = V / ((1+taxa_mensal)^h).
+        original = row["valor"] / ((1 + taxa_mensal) ** holding)
+        ganho = row["valor"] - original
+        imposto = ganho * aliquota
+        imposto_total += imposto
+        valor_final += row["valor"] - imposto
 
-    # === Montar DataFrame para o gráfico de evolução ===
-    anos = np.arange(0, meses_totais + 1) / 12
+    return historico, valor_final, imposto_total
+
+# === Sidebar: parâmetros de entrada ===
+st.sidebar.header("Parâmetros Gerais")
+
+valor_inicial = st.sidebar.number_input(
+    "Valor inicial (R$):", min_value=0.0, value=10000.0, step=1000.0, format="%.2f"
+)
+st.sidebar.subheader("Aportes periódicos")
+aporte = st.sidebar.number_input(
+    "Valor do aporte (R$):", min_value=0.0, value=1000.0, step=100.0, format="%.2f"
+)
+freq_aporte = st.sidebar.selectbox(
+    "Frequência dos aportes:", ("Mensal", "Anual")
+)
+taxa_anual = st.sidebar.slider(
+    "Taxa de retorno anual (%):", min_value=0.0, max_value=50.0, value=8.0, step=0.1
+) / 100.0
+prazo_anos = st.sidebar.number_input(
+    "Prazo total (anos):", min_value=1, max_value=100, value=15, step=1
+)
+st.sidebar.subheader("Renda Fixa")
+ciclo_anos = st.sidebar.number_input(
+    "Ciclo de reinvestimento RF (anos):", min_value=1, max_value=50, value=4, step=1
+)
+btn = st.sidebar.button("Calcular projeções")
+
+# === Quando o usuário clicar em "Calcular projeções" ===
+if btn:
+    # 1) Fundo de Investimento
+    hist_fundo, imp_fundo = simular_fundo_lotes(
+        valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos
+    )
+    # 2) Renda Fixa
+    hist_rf, imp_rf = simular_rf_lotes(
+        valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos, ciclo_anos
+    )
+    # 3) VGBL
+    hist_vgbl, val_vgbl, imp_vgbl = simular_vgbl_lotes(
+        valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos
+    )
+
+    # Exibir valores finais
+    st.subheader("1) Valores Finais (já líquidos de IR)")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Fundo (lote a lote)", f"R$ {hist_fundo[-1]:,.2f}")
+    c2.metric("Renda Fixa (lote a lote)", f"R$ {hist_rf[-1]:,.2f}")
+    c3.metric("VGBL (lote a lote)", f"R$ {val_vgbl:,.2f}")
+
+    # Exibir impostos totais pagos
+    st.subheader("2) Impostos Pagos ao Longo do Período")
+    c4, c5, c6 = st.columns(3)
+    c4.write(f"Fundo (come-cotas): R$ {imp_fundo:,.2f}")
+    c5.write(f"Renda Fixa: R$ {imp_rf:,.2f}")
+    c6.write(f"VGBL (resgate): R$ {imp_vgbl:,.2f}")
+
+    # Montar DataFrame de evolução (apenas para plotagem)
+    meses = np.arange(0, prazo_anos * 12 + 1)
     df_evolucao = pd.DataFrame({
-        "Fundo (apos come-cotas)": serie_fundo,
-        "Renda Fixa (apos IR em cada ciclo)": serie_rf,
-        "VGBL (bruto)": serie_vgbl
-    }, index=anos)
+        "Fundo (líquido lotes)": hist_fundo,
+        "Renda Fixa (líquido lotes)": hist_rf,
+        "VGBL (bruto lotes)": hist_vgbl
+    }, index=meses / 12)
 
-    st.subheader("3) Grafico de Evolucao do Saldo")
+    st.subheader("3) Gráfico de Evolução Mensal")
     st.line_chart(df_evolucao)
 
-    st.markdown('''
+    st.markdown(
+        """
+        **Como funciona este simulador (lote a lote)**
 
-**Observacoes importantes**:
+        1. **Fundo de Investimento**
+           - Cada aporte (inclusive o inicial) é tratado como um lote separado.
+           - A cada mês de maio e novembro (“come-cotas”), calcula-se, para cada lote:
+             - `holding` = meses decorrido desde o `mes_aporte` até o mês atual.
+             - `ganho` = valor atual do lote menos o valor-base (último valor após IR).
+             - `aliquota` = função `aliquota_regressiva(holding)`:
+               - 0–6 meses: 22,5%
+               - 6–12 meses: 20%
+               - 12–24 meses: 17,5%
+               - >24 meses: 15%
+             - Aplica IR sobre o `ganho` (ganho × alíquota). O lote é deduzido do imposto e, então, seu “base” é atualizado para o valor líquido.
+        2. **Renda Fixa**
+           - Cada aporte (inclusive o inicial) é tratado como um lote separado.
+           - Informar o ciclo de reinvestimento (em anos). Cada lote que completar “múltiplo” exato de ciclos (em meses) paga IR sobre o ganho acumulado:
+             - `holding` = meses desde o `mes_aporte` até o mês de avaliação.
+             - `aliquota` = mesmo esquema regressivo acima.
+             - Aplica IR e atualiza o “base” do lote (valor que continuará rendendo no próximo ciclo).
+           - Ao final do período de projeção, cada lote que não tenha completado um ciclo exato ainda paga IR proporcional ao tempo decorrido (meses totais – mes_aporte).
+        3. **VGBL**
+           - Cada aporte (inclusive o inicial) é tratado como um lote separado.
+           - Não há tributação durante a acumulação.
+           - No final, para cada lote calcula-se:
+             - `holding` = meses desde `mes_aporte` até o fim da projeção.
+             - `aliquota` = função `aliquota_vgbl(holding)`:
+               - Até 2 anos: 35%
+               - Até 4 anos: 30%
+               - Até 6 anos: 25%
+               - Até 8 anos: 20%
+               - Até 10 anos: 15%
+               - Acima de 10 anos: 10%
+             - `ganho` = valor atual do lote menos o valor inicial bruto (reconstruído via `(valor_atual) / ((1+taxa_mensal)^holding)`).
+             - Aplica IR e deduz do lote. Soma-se todos os lotes líquidos para obter o valor final.
+        4. **Aportes**
+           - Se “Mensal”, cada mês haverá um lote extra com o valor do aporte.
+           - Se “Anual”, cada 12 meses (jan/â cada ano) haverá um lote extra.
+        5. **Taxa de Retorno**
+           - Taxa anual informada no sidebar é convertida para taxa mensal composta: `(1 + taxa_anual)**(1/12) - 1`.
 
-- **Fundo de Investimento (Longo Prazo)**
-  - Aplica-se IR de 15% sobre o ganho semestralmente (come-cotas em maio e novembro).
-  - Nao ha tributacao adicional no resgate, pois o come-cotas ja antecipou o IR devido.
-
-- **Renda Fixa**
-  - A cada ciclo (definido em anos), todo o ganho acumulado desde o ultimo evento e tributado.
-  - A aliquota segue a tabela regressiva de IR (maior tempo de aplicacao -> menor aliquota).
-  - Apos o pagamento do IR, o montante liquido e reinvestido para o proximo ciclo.
-
-- **VGBL**
-  - Nao ha come-cotas durante a acumulacao.
-  - No resgate, aplica-se uma unica aliquota de IR sobre todo o ganho acumulado, conforme o prazo total de permanencia (tabela regressiva).
-
-- **Aportes**
-  - Se escolher "Mensal", os aportes sao adicionados no inicio de cada mes.
-  - Se escolher "Anual", os aportes sao adicionados no inicio de cada ano (1o mes de cada ano).
-
-- **Taxa de Retorno**
-  - A taxa anual informada no sidebar e convertida para equivalencia mensal composta.
-
-- **Ciclo de Renda Fixa**
-  - Informe em anos (ex.: 4 significa que, a cada 48 meses, ocorre a tributacao de IR sobre o ganho daquele periodo).
-''')
-
+        Este algoritmo garante que cada aporte pague IR de acordo com seu próprio tempo de permanência (exato em meses), e não apenas pela idade da carteira como um todo. As saídas exibidas (“valor final” e “imposto pago”) são calculadas quando temos 100% de certeza de cada lote estar tributado corretamente.
+        """
+    )
