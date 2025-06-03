@@ -71,11 +71,11 @@ def simular_fundo_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_an
 
         # 1) Inserir aporte (antes do growth mensal)
         if freq_aporte == "Mensal":
-            lote = {"valor": aporte, "base": aporte, "mes_aporte": mes}
-            df = df.append(lote, ignore_index=True)
+            idx = len(df)
+            df.loc[idx] = [aporte, aporte, mes]
         elif freq_aporte == "Anual" and mes % 12 == 0 and mes > 0:
-            lote = {"valor": aporte, "base": aporte, "mes_aporte": mes}
-            df = df.append(lote, ignore_index=True)
+            idx = len(df)
+            df.loc[idx] = [aporte, aporte, mes]
 
         # 2) Crescimento mensal de cada lote
         df["valor"] = df["valor"] * (1 + taxa_mensal)
@@ -118,11 +118,11 @@ def simular_rf_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos,
 
         # 1) Inserir aporte
         if freq_aporte == "Mensal":
-            lote = {"valor": aporte, "base": aporte, "mes_aporte": mes}
-            df = df.append(lote, ignore_index=True)
+            idx = len(df)
+            df.loc[idx] = [aporte, aporte, mes]
         elif freq_aporte == "Anual" and mes % 12 == 0 and mes > 0:
-            lote = {"valor": aporte, "base": aporte, "mes_aporte": mes}
-            df = df.append(lote, ignore_index=True)
+            idx = len(df)
+            df.loc[idx] = [aporte, aporte, mes]
 
         # 2) Crescimento mensal
         df["valor"] = df["valor"] * (1 + taxa_mensal)
@@ -170,9 +170,11 @@ def simular_vgbl_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_ano
 
         # 1) Inserir aporte
         if freq_aporte == "Mensal":
-            df = df.append({"valor": aporte, "mes_aporte": mes}, ignore_index=True)
+            idx = len(df)
+            df.loc[idx] = [aporte, mes]
         elif freq_aporte == "Anual" and mes % 12 == 0 and mes > 0:
-            df = df.append({"valor": aporte, "mes_aporte": mes}, ignore_index=True)
+            idx = len(df)
+            df.loc[idx] = [aporte, mes]
 
         # 2) Crescimento mensal
         df["valor"] = df["valor"] * (1 + taxa_mensal)
