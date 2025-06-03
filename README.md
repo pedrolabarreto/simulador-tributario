@@ -1,6 +1,6 @@
-# Simulador Tributário Versão Final
+# Simulador Tributário com Output Corrigido
 
-Este repositório contém um aplicativo em Streamlit que simula investimentos (Fundo, Renda Fixa e VGBL) e calcula a taxa anual necessária para igualar o valor líquido final dos investimentos de Fundo e Renda Fixa ao do VGBL. Esta versão inclui caching para otimizar desempenho e uma mensagem de sucesso ao final.
+Este repositório contém um aplicativo em Streamlit que simula investimentos (Fundo, Renda Fixa e VGBL) e calcula a taxa anual necessária para igualar o valor líquido final dos investimentos de Fundo e Renda Fixa ao do VGBL.
 
 ## Arquivos
 
@@ -20,13 +20,12 @@ Este repositório contém um aplicativo em Streamlit que simula investimentos (F
    ```
 3. Ajuste os parâmetros na barra lateral:
    - Valor inicial, aporte, frequência, taxa de retorno (para cálculo inicial), prazo e ciclo RF.  
-4. Clique em **Calcular projeções** e aguarde a mensagem de sucesso. O aplicativo exibirá:
+4. Clique em **Calcular projeções** para visualizar:
    - Valores finais líquidos e impostos pagos.  
    - Gráfico da evolução mensal.  
    - Tabela com a **taxa anual necessária** para Fundo e Renda Fixa igualarem o valor líquido do VGBL.
 
 ## Observações
 
-- Funções de simulação são memorizadas (cached) para acelerar bisseção e evitar tempo de espera indefinido.  
-- Mensagem de sucesso aparecerá quando o cálculo terminar.  
+- Mensagem inicial instrui a ajustar parâmetros e clicar no botão.  
 - Cada aporte (inclusive o inicial) é tratado como um lote, tributado individualmente.  
