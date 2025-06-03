@@ -1,4 +1,4 @@
-# Simulador Tributário com Taxa Necessária
+# Simulador Tributário com Taxa Corrigida
 
 Este repositório contém um aplicativo em Streamlit que simula investimentos (Fundo, Renda Fixa e VGBL) e calcula a taxa anual necessária para igualar o valor líquido final dos investimentos de Fundo e Renda Fixa ao do VGBL.
 
