@@ -44,16 +44,13 @@ def simular_fundo_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_an
         historico.append(df["valor"].sum())
         if mes == meses_totais:
             break
-        # aporte
         if freq_aporte == "Mensal":
             idx = len(df)
             df.loc[idx] = [aporte, aporte, mes]
         elif freq_aporte == "Anual" and mes % 12 == 0 and mes > 0:
             idx = len(df)
             df.loc[idx] = [aporte, aporte, mes]
-        # crescimento
         df["valor"] = df["valor"] * (1 + taxa_mensal)
-        # come-cotas
         mes_do_ano = (mes % 12) + 1
         if mes_do_ano in (5, 11):
             for idx, row in df.iterrows():
@@ -65,7 +62,6 @@ def simular_fundo_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_an
                     df.at[idx, "valor"] = row["valor"] - imposto
                     df.at[idx, "base"] = df.at[idx, "valor"]
                     imposto_total += imposto
-    # valor final líquido
     valor_final = historico[-1]
     return historico, valor_final, imposto_total
 
@@ -98,7 +94,6 @@ def simular_rf_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos,
                     df.at[idx, "valor"] = row["valor"] - imposto
                     df.at[idx, "base"] = df.at[idx, "valor"]
                     imposto_total += imposto
-    # imposto residual final
     for idx, row in df.iterrows():
         holding = (prazo_anos * 12) - int(row["mes_aporte"])
         if holding > 0 and (holding % ciclo_meses != 0):
@@ -145,7 +140,6 @@ def encontrar_taxa_alvo_fundo(valor_inicial, aporte, freq_aporte, prazo_anos, al
     def valor_final_taxa(taxa):
         _, vf, _ = simular_fundo_lotes(valor_inicial, aporte, freq_aporte, taxa, prazo_anos)
         return vf
-    # bisseção
     low, high = 0.0, 1.0
     for _ in range(20):
         if valor_final_taxa(high) < alvo:
@@ -194,7 +188,9 @@ st.sidebar.subheader("Renda Fixa")
 ciclo_anos = st.sidebar.number_input("Ciclo de reinvestimento RF (anos):", min_value=1, max_value=50, value=4, step=1)
 btn = st.sidebar.button("Calcular projeções")
 
-if btn:
+if not btn:
+    st.write("Ajuste os parâmetros na barra lateral e clique em **Calcular projeções** para ver os resultados.")
+else:
     hist_fundo, vf_fundo, imp_fundo = simular_fundo_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos)
     hist_rf, vf_rf, imp_rf = simular_rf_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos, ciclo_anos)
     hist_vgbl, vf_vgbl, imp_vgbl = simular_vgbl_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos)
@@ -228,7 +224,7 @@ if btn:
     st.subheader("Taxas Necessárias para Igualar ao VGBL")
     df_taxas = pd.DataFrame({
         "Modalidade": ["Fundo", "Renda Fixa"],
-        "Taxa Anual Necessária (%)": [taxa_fundo_necessaria * 100, taxa_rf_necessaria * 100]
+        "Taxa Anual Necessária (%)": [round(taxa_fundo_necessaria * 100, 4), round(taxa_rf_necessaria * 100, 4)]
     })
     st.table(df_taxas)
 
