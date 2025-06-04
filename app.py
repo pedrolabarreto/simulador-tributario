@@ -1,14 +1,16 @@
-# app.py - Versão 1.0.1 (atualizado para forçar detecção de mudança)
-import streamlit as st
-import pandas as pd
+# app.py - Versão 1.1.0
+
 import numpy as np
 
-st.set_page_config(layout="wide")
-st.title("Simulador Tributário: Fundo, Renda Fixa e VGBL (corrigido)")
-
-# ————— TABELA DE ALÍQUOTAS REGRESSIVAS —————
 def aliquota_regressiva(meses):
-    # 0–6 meses: 22.5%; 6–12:20%; 12–24:17.5%; >24:15%
+    """
+    Retorna a alíquota de IR para cada fundo/renda fixa (lote a lote),
+    segundo esquema regressivo:
+      - 0–6 meses   : 22,5%
+      - 7–12 meses  : 20%
+      - 13–24 meses : 17,5%
+      - >24 meses   : 15%
+    """
     if meses <= 6:
         return 0.225
     elif meses <= 12:
@@ -18,193 +20,208 @@ def aliquota_regressiva(meses):
     else:
         return 0.15
 
-# ————— SIMULAÇÕES POR LOTE —————
-@st.cache_data(show_spinner=False)
-def simular_fundo_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, plazo_anos):
-    meses_totais = plazo_anos * 12
-    taxa_mensal = (1 + taxa_anual) ** (1/12) - 1
+def aliquota_vgbl(meses):
+    """
+    Retorna a alíquota de IR para VGBL no momento do resgate, por lote:
+      - até  24 meses (2 anos) : 35%
+      - até  48 meses (4 anos) : 30%
+      - até  72 meses (6 anos) : 25%
+      - até  96 meses (8 anos) : 20%
+      - até 120 meses (10 anos): 15%
+      - > 120 meses           : 10%
+    """
+    anos = meses / 12
+    if anos <= 2:
+        return 0.35
+    elif anos <= 4:
+        return 0.30
+    elif anos <= 6:
+        return 0.25
+    elif anos <= 8:
+        return 0.20
+    elif anos <= 10:
+        return 0.15
+    else:
+        return 0.10
 
-    # Um DataFrame com cada lote (inicial + aportes)
-    df = pd.DataFrame(columns=["valor", "base", "mes_aporte"])
-    df.loc[0] = [valor_inicial, valor_inicial, 0]
+def simular_fundo(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos):
+    """
+    Simula fundo de investimento lote a lote, com come-cotas semestrais (maio e novembro)
+    e alíquotas regressivas por lote, aplicando aporte (Mensal ou Anual).
+    Retorna: (valor_final_líquido, imposto_total_pago)
+    """
+    meses_totais = int(prazo_anos * 12)
+    taxa_mensal = (1 + taxa_anual) ** (1 / 12) - 1
+
+    lotes = [[valor_inicial, valor_inicial, 0]]
     imposto_total = 0.0
-    historico = [valor_inicial]
 
     for mes in range(1, meses_totais + 1):
-        # ============ 1) Inserir aporte (se houver) ============
+        # Inserir aporte
         if freq_aporte == "Mensal":
-            idx = len(df)
-            df.loc[idx] = [aporte, aporte, mes - 1]
+            lotes.append([aporte, aporte, mes - 1])
         elif freq_aporte == "Anual" and (mes - 1) % 12 == 0 and (mes - 1) > 0:
-            idx = len(df)
-            df.loc[idx] = [aporte, aporte, mes - 1]
+            lotes.append([aporte, aporte, mes - 1])
 
-        # ============ 2) Crescimento mensal de cada lote ============
-        df["valor"] = df["valor"] * (1 + taxa_mensal)
+        # Crescimento mensal
+        for lote in lotes:
+            lote[0] *= (1 + taxa_mensal)
 
-        # ============ 3) Evento de come-cotas: AGORA em maio (5) e novembro (11) ============
+        # Come-cotas em maio (5) e novembro (11)
         mes_do_ano = ((mes - 1) % 12) + 1
         if mes_do_ano in (5, 11):
-            for idx, row in df.iterrows():
-                holding = mes - int(row["mes_aporte"])  # meses decorridos
-                ganho = row["valor"] - row["base"]
+            for i, (valor, base, mes_ap) in enumerate(lotes):
+                holding = mes - mes_ap
+                ganho = valor - base
                 if ganho > 0:
-                    aliquota = aliquota_regressiva(holding)
-                    imposto = ganho * aliquota
-                    df.at[idx, "valor"] = row["valor"] - imposto
-                    df.at[idx, "base"] = df.at[idx, "valor"]
+                    alq = aliquota_regressiva(holding)
+                    imposto = ganho * alq
+                    valor_liquido = valor - imposto
+                    lotes[i][0] = valor_liquido
+                    lotes[i][1] = valor_liquido
                     imposto_total += imposto
 
-        historico.append(df["valor"].sum())
+    valor_final = sum(lote[0] for lote in lotes)
+    return valor_final, imposto_total
 
-    valor_final = historico[-1]
-    return historico, valor_final, imposto_total
+def simular_rf(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos, ciclo_anos):
+    """
+    Simula títulos de renda fixa lote a lote, com tributação regressiva ao final de cada ciclo.
+    Retorna: (valor_final_líquido, imposto_total_pago)
+    """
+    meses_totais = int(prazo_anos * 12)
+    taxa_mensal = (1 + taxa_anual) ** (1 / 12) - 1
+    ciclo_meses = int(ciclo_anos * 12)
 
-
-@st.cache_data(show_spinner=False)
-def simular_rf_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, plazo_anos, ciclo_anos):
-    meses_totais = plazo_anos * 12
-    taxa_mensal = (1 + taxa_anual) ** (1/12) - 1
-    ciclo_meses = ciclo_anos * 12
-
-    # DataFrame para lotes: só o inicial se aporte = 0
-    df = pd.DataFrame(columns=["valor", "base", "mes_aporte"])
-    df.loc[0] = [valor_inicial, valor_inicial, 0]
+    lotes = [[valor_inicial, valor_inicial, 0]]
     imposto_total = 0.0
-    historico = [valor_inicial]
 
     for mes in range(1, meses_totais + 1):
-        # ============ 1) Inserir aporte (se houver) ============
+        # Inserir aporte
         if freq_aporte == "Mensal":
-            idx = len(df)
-            df.loc[idx] = [aporte, aporte, mes - 1]
+            lotes.append([aporte, aporte, mes - 1])
         elif freq_aporte == "Anual" and (mes - 1) % 12 == 0 and (mes - 1) > 0:
-            idx = len(df)
-            df.loc[idx] = [aporte, aporte, mes - 1]
+            lotes.append([aporte, aporte, mes - 1])
 
-        # ============ 2) Crescimento mensal ============
-        df["valor"] = df["valor"] * (1 + taxa_mensal)
+        # Crescimento mensal
+        for lote in lotes:
+            lote[0] *= (1 + taxa_mensal)
 
-        # ============ 3) Quando cumprir ciclo exato: tributar lote a lote ============
+        # Tributar a cada ciclo completo
         if mes % ciclo_meses == 0:
-            for idx, row in df.iterrows():
-                holding = mes - int(row["mes_aporte"])
-                ganho = row["valor"] - row["base"]
+            for i, (valor, base, mes_ap) in enumerate(lotes):
+                holding = mes - mes_ap
+                ganho = valor - base
                 if ganho > 0:
-                    aliquota = aliquota_regressiva(holding)
-                    imposto = ganho * aliquota
-                    df.at[idx, "valor"] = row["valor"] - imposto
-                    df.at[idx, "base"] = df.at[idx, "valor"]
+                    alq = aliquota_regressiva(holding)
+                    imposto = ganho * alq
+                    valor_liquido = valor - imposto
+                    lotes[i][0] = valor_liquido
+                    lotes[i][1] = valor_liquido
                     imposto_total += imposto
 
-        historico.append(df["valor"].sum())
-
-    # ============ 4) Pós-ciclo final: tributar resíduo se não for múltiplo exato ============
-    for idx, row in df.iterrows():
-        holding = meses_totais - int(row["mes_aporte"])
+    # Tributar resíduo final se houver
+    for i, (valor, base, mes_ap) in enumerate(lotes):
+        holding = meses_totais - mes_ap
         if holding > 0 and (holding % ciclo_meses != 0):
-            ganho = row["valor"] - row["base"]
+            ganho = valor - base
             if ganho > 0:
-                aliquota = aliquota_regressiva(holding)
-                imposto = ganho * aliquota
-                df.at[idx, "valor"] = row["valor"] - imposto
+                alq = aliquota_regressiva(holding)
+                imposto = ganho * alq
+                valor_liquido = valor - imposto
+                lotes[i][0] = valor_liquido
                 imposto_total += imposto
 
-    valor_final = df["valor"].sum()
-    return historico, valor_final, imposto_total
+    valor_final = sum(lote[0] for lote in lotes)
+    return valor_final, imposto_total
 
+def simular_vgbl(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos):
+    """
+    Simula VGBL lote a lote, tributado apenas no final.
+    Retorna: (valor_final_líquido, imposto_total_pago)
+    """
+    meses_totais = int(prazo_anos * 12)
+    taxa_mensal = (1 + taxa_anual) ** (1 / 12) - 1
 
-@st.cache_data(show_spinner=False)
-def simular_vgbl_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, plazo_anos):
-    meses_totais = plazo_anos * 12
-    taxa_mensal = (1 + taxa_anual) ** (1/12) - 1
-
-    df = pd.DataFrame(columns=["valor", "mes_aporte"])
-    df.loc[0] = [valor_inicial, 0]
-    historico = [valor_inicial]
+    lotes = [[valor_inicial, 0]]
+    imposto_total = 0.0
 
     for mes in range(1, meses_totais + 1):
+        # Inserir aporte
         if freq_aporte == "Mensal":
-            idx = len(df)
-            df.loc[idx] = [aporte, mes - 1]
+            lotes.append([aporte, mes - 1])
         elif freq_aporte == "Anual" and (mes - 1) % 12 == 0 and (mes - 1) > 0:
-            idx = len(df)
-            df.loc[idx] = [aporte, mes - 1]
+            lotes.append([aporte, mes - 1])
 
-        df["valor"] = df["valor"] * (1 + taxa_mensal)
-        historico.append(df["valor"].sum())
+        # Crescimento mensal
+        for lote in lotes:
+            lote[0] *= (1 + taxa_mensal)
 
-    # único imposto no final, alíquota de 10% pois prazo = 10 anos
-    imposto_total = 0.0
     valor_final = 0.0
-    for idx, row in df.iterrows():
-        holding = meses_totais - int(row["mes_aporte"])
-        # para VGBL, usamos mesma função de aliquota_regressiva, mas:
-        # se holding > 120 (10 anos), cai em alíquota de 10%, como desejado
-        if holding <= 24:
-            aliq = 0.35
-        elif holding <= 48:
-            aliq = 0.30
-        elif holding <= 72:
-            aliq = 0.25
-        elif holding <= 96:
-            aliq = 0.20
-        elif holding <= 120:
-            aliq = 0.15
-        else:
-            aliq = 0.10  # (não será usado neste exemplo de 10 anos)
-
-        original = row["valor"] / ((1 + taxa_mensal) ** holding)
-        ganho = row["valor"] - original
-        imposto = ganho * aliq
+    for valor, mes_ap in lotes:
+        holding = meses_totais - mes_ap
+        alq = aliquota_vgbl(holding)
+        original = valor / ((1 + taxa_mensal) ** holding)
+        ganho = valor - original
+        imposto = ganho * alq
         imposto_total += imposto
-        valor_final += row["valor"] - imposto
+        valor_final += valor - imposto
 
-    return historico, valor_final, imposto_total
+    return valor_final, imposto_total
 
+def encontrar_taxa_alvo(func, args, alvo, low=0.0, high=1.0, tol=1e-6, max_iter=100):
+    """
+    Encontra taxa anual para que func(*args, taxa_anual)[0] seja igual a alvo,
+    usando bisseção no intervalo [low, high].
+    func deve retornar (valor_final, imposto).
+    """
+    def valor_final_taxa(taxa):
+        val, _ = func(*args, taxa)
+        return val
 
-# ————— STREAMLIT: PARÂMETROS DE ENTRADA —————
-st.sidebar.header("Parâmetros Gerais")
-valor_inicial = st.sidebar.number_input("Valor inicial (R$):", min_value=0.0, value=500_000.0, step=50_000.0, format="%.2f")
-st.sidebar.subheader("Aportes periódicos")
-aporte = st.sidebar.number_input("Valor do aporte (R$):", min_value=0.0, value=0.0, step=1_000.0, format="%.2f")
-freq_aporte = st.sidebar.selectbox("Frequência dos aportes:", ("Mensal", "Anual"))
-taxa_anual = st.sidebar.slider("Taxa de retorno anual (%):", min_value=0.0, max_value=50.0, value=10.10, step=0.01) / 100.0
-prazo_anos = st.sidebar.number_input("Prazo total (anos):", min_value=1, max_value=50, value=10, step=1)
-st.sidebar.subheader("Renda Fixa")
-ciclo_anos = st.sidebar.number_input("Ciclo de reinvestimento RF (anos):", min_value=1, max_value=50, value=5, step=1)
-btn = st.sidebar.button("Calcular projeções")
+    # Ajustar high caso insuficiente
+    for _ in range(20):
+        if valor_final_taxa(high) < alvo:
+            high *= 2
+        else:
+            break
 
-if not btn:
-    st.write("Ajuste os parâmetros na barra lateral e clique em **Calcular projeções** para ver os resultados.")
-else:
-    # ————— EXECUÇÃO DAS SIMULAÇÕES —————
-    hist_fundo, vf_fundo, imp_fundo = simular_fundo_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos)
-    hist_rf, vf_rf, imp_rf = simular_rf_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos, ciclo_anos)
-    hist_vgbl, vf_vgbl, imp_vgbl = simular_vgbl_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos)
+    for _ in range(max_iter):
+        mid = (low + high) / 2
+        val_mid = valor_final_taxa(mid)
+        if abs(val_mid - alvo) < tol:
+            return mid
+        if val_mid < alvo:
+            low = mid
+        else:
+            high = mid
+    return (low + high) / 2
 
-    # ————— MOSTRAR RESULTADOS —————
-    st.subheader("1) Valores Finais (líquidos de IR)")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Fundo (lote a lote)", f"R$ {vf_fundo:,.2f}")
-    c2.metric("Renda Fixa (lote a lote)", f"R$ {vf_rf:,.2f}")
-    c3.metric("VGBL (lote a lote)", f"R$ {vf_vgbl:,.2f}")
+if __name__ == "__main__":
+    # Parâmetros exemplo
+    P = 500_000.0
+    aporte = 0.0
+    freq_aporte = "Mensal"
+    prazo_anos = 10
+    ciclo_anos = 5
+    taxa_inicial = 0.101  # utilizado apenas para calcular VGBL benchmark
 
-    st.subheader("2) Impostos Pagos")
-    c4, c5, c6 = st.columns(3)
-    c4.write(f"Fundo: R$ {imp_fundo:,.2f}")
-    c5.write(f"Renda Fixa: R$ {imp_rf:,.2f}")
-    c6.write(f"VGBL: R$ {imp_vgbl:,.2f}")
+    # 1) Calcular VGBL benchmark
+    vf_vgbl, imp_vgbl = simular_vgbl(P, aporte, freq_aporte, taxa_inicial, prazo_anos)
+    print(f"VGBL -> Valor líquido = R$ {vf_vgbl:,.2f}, Imposto = R$ {imp_vgbl:,.2f}")
 
-    # Montar DataFrame de evolução para o gráfico
-    meses = np.arange(0, prazo_anos * 12 + 1)
-    df_evolucao = pd.DataFrame({
-        "Fundo (líquido lotes)": hist_fundo,
-        "Renda Fixa (líquido lotes)": hist_rf,
-        "VGBL (bruto lotes)": hist_vgbl
-    }, index=meses / 12)
+    # 2) Encontrar taxa necessária para Fundo
+    args_fundo = (P, aporte, freq_aporte, prazo_anos)
+    taxa_fundo_necessaria = encontrar_taxa_alvo(simular_fundo, args_fundo, vf_vgbl)
+    print(f"Taxa necessária para Fundo: {taxa_fundo_necessaria*100:.6f}% a.a.")
 
-    st.subheader("3) Gráfico de Evolução Mensal")
-    st.line_chart(df_evolucao)
+    # 3) Encontrar taxa necessária para RF
+    args_rf = (P, aporte, freq_aporte, prazo_anos, ciclo_anos)
+    taxa_rf_necessaria = encontrar_taxa_alvo(simular_rf, args_rf, vf_vgbl)
+    print(f"Taxa necessária para Renda Fixa: {taxa_rf_necessaria*100:.6f}% a.a.")
 
-    st.success("Cálculo concluído com sucesso!")
+    # 4) Verificação
+    vf_fundo_corr, imp_fundo_corr = simular_fundo(P, aporte, freq_aporte, taxa_fundo_necessaria, prazo_anos)
+    vf_rf_corr, imp_rf_corr = simular_rf(P, aporte, freq_aporte, taxa_rf_necessaria, prazo_anos, ciclo_anos)
+    print(f"Fundo (corrigido) -> Valor líquido = R$ {vf_fundo_corr:,.2f}, Imposto = R$ {imp_fundo_corr:,.2f}")
+    print(f"RF    (corrigido) -> Valor líquido = R$ {vf_rf_corr:,.2f}, Imposto = R$ {imp_rf_corr:,.2f}")
