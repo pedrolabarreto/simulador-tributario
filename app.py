@@ -33,6 +33,7 @@ def aliquota_vgbl(meses):
         return 0.10
 
 # === Simulações por lote ===
+@st.cache_data(show_spinner=False)
 def simular_fundo_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos):
     meses_totais = prazo_anos * 12
     taxa_mensal = (1 + taxa_anual)**(1/12) - 1
@@ -40,18 +41,18 @@ def simular_fundo_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_an
     df.loc[0] = [valor_inicial, valor_inicial, 0]
     imposto_total = 0.0
     historico = []
-    for mes in range(meses_totais + 1):
-        historico.append(df["valor"].sum())
-        if mes == meses_totais:
-            break
+    for mes in range(1, meses_totais + 1):
+        # inclusão de aporte no início do mês
         if freq_aporte == "Mensal":
             idx = len(df)
-            df.loc[idx] = [aporte, aporte, mes]
-        elif freq_aporte == "Anual" and mes % 12 == 0 and mes > 0:
+            df.loc[idx] = [aporte, aporte, mes-1]
+        elif freq_aporte == "Anual" and (mes - 1) % 12 == 0 and mes-1 > 0:
             idx = len(df)
-            df.loc[idx] = [aporte, aporte, mes]
+            df.loc[idx] = [aporte, aporte, mes-1]
+        # crescimento mensal
         df["valor"] = df["valor"] * (1 + taxa_mensal)
-        mes_do_ano = (mes % 12) + 1
+        # come-cotas em maio (5) e novembro (11)
+        mes_do_ano = ((mes-1) % 12) + 1
         if mes_do_ano in (5, 11):
             for idx, row in df.iterrows():
                 holding = mes - int(row["mes_aporte"])
@@ -62,9 +63,13 @@ def simular_fundo_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_an
                     df.at[idx, "valor"] = row["valor"] - imposto
                     df.at[idx, "base"] = df.at[idx, "valor"]
                     imposto_total += imposto
+        historico.append(df["valor"].sum())
+    # incluir valor inicial no histórico
+    historico.insert(0, valor_inicial)
     valor_final = historico[-1]
     return historico, valor_final, imposto_total
 
+@st.cache_data(show_spinner=False)
 def simular_rf_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos, ciclo_anos):
     meses_totais = prazo_anos * 12
     taxa_mensal = (1 + taxa_anual)**(1/12) - 1
@@ -73,20 +78,20 @@ def simular_rf_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos,
     df.loc[0] = [valor_inicial, valor_inicial, 0]
     imposto_total = 0.0
     historico = []
-    for mes in range(meses_totais + 1):
-        historico.append(df["valor"].sum())
-        if mes == meses_totais:
-            break
+    for mes in range(1, meses_totais + 1):
+        # inclusão de aporte no início do mês
         if freq_aporte == "Mensal":
             idx = len(df)
-            df.loc[idx] = [aporte, aporte, mes]
-        elif freq_aporte == "Anual" and mes % 12 == 0 and mes > 0:
+            df.loc[idx] = [aporte, aporte, mes-1]
+        elif freq_aporte == "Anual" and (mes - 1) % 12 == 0 and mes-1 > 0:
             idx = len(df)
-            df.loc[idx] = [aporte, aporte, mes]
+            df.loc[idx] = [aporte, aporte, mes-1]
+        # crescimento mensal
         df["valor"] = df["valor"] * (1 + taxa_mensal)
-        for idx, row in df.iterrows():
-            holding = mes - int(row["mes_aporte"])
-            if holding > 0 and (holding % ciclo_meses == 0):
+        # aplicação de IR ao completar ciclo exato
+        if mes % ciclo_meses == 0:
+            for idx, row in df.iterrows():
+                holding = mes - int(row["mes_aporte"])
                 ganho = row["valor"] - row["base"]
                 if ganho > 0:
                     aliquota = aliquota_regressiva(holding)
@@ -94,39 +99,46 @@ def simular_rf_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos,
                     df.at[idx, "valor"] = row["valor"] - imposto
                     df.at[idx, "base"] = df.at[idx, "valor"]
                     imposto_total += imposto
+        historico.append(df["valor"].sum())
+    # pós-ciclo final: tratar lotes que não atingiram múltiplo exato
     for idx, row in df.iterrows():
-        holding = (prazo_anos * 12) - int(row["mes_aporte"])
-        if holding > 0 and (holding % ciclo_meses != 0):
+        holding = meses_totais - int(row["mes_aporte"])
+        if holding > 0 and holding % ciclo_meses != 0:
             ganho = row["valor"] - row["base"]
             if ganho > 0:
                 aliquota = aliquota_regressiva(holding)
                 imposto = ganho * aliquota
                 df.at[idx, "valor"] = row["valor"] - imposto
                 imposto_total += imposto
-    valor_final = historico[-1]
+    valor_final = df["valor"].sum()
+    # inserir valor inicial no histórico
+    historico.insert(0, valor_inicial)
     return historico, valor_final, imposto_total
 
+@st.cache_data(show_spinner=False)
 def simular_vgbl_lotes(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos):
     meses_totais = prazo_anos * 12
     taxa_mensal = (1 + taxa_anual)**(1/12) - 1
     df = pd.DataFrame(columns=["valor", "mes_aporte"])
     df.loc[0] = [valor_inicial, 0]
     historico = []
-    for mes in range(meses_totais + 1):
-        historico.append(df["valor"].sum())
-        if mes == meses_totais:
-            break
+    for mes in range(1, meses_totais + 1):
+        # aporte mês 0 é inicial, a partir de mes=1
         if freq_aporte == "Mensal":
             idx = len(df)
-            df.loc[idx] = [aporte, mes]
-        elif freq_aporte == "Anual" and mes % 12 == 0 and mes > 0:
+            df.loc[idx] = [aporte, mes-1]
+        elif freq_aporte == "Anual" and (mes - 1) % 12 == 0 and mes-1 > 0:
             idx = len(df)
-            df.loc[idx] = [aporte, mes]
+            df.loc[idx] = [aporte, mes-1]
+        # crescimento mensal
         df["valor"] = df["valor"] * (1 + taxa_mensal)
+        historico.append(df["valor"].sum())
+    # inserir valor inicial no histórico
+    historico.insert(0, valor_inicial)
     imposto_total = 0.0
     valor_final = 0.0
     for idx, row in df.iterrows():
-        holding = (prazo_anos * 12) - int(row["mes_aporte"])
+        holding = meses_totais - int(row["mes_aporte"])
         aliquota = aliquota_vgbl(holding)
         original = row["valor"] / ((1 + taxa_mensal) ** holding)
         ganho = row["valor"] - original
@@ -178,14 +190,14 @@ def encontrar_taxa_alvo_rf(valor_inicial, aporte, freq_aporte, prazo_anos, ciclo
 
 # === Sidebar ===
 st.sidebar.header("Parâmetros Gerais")
-valor_inicial = st.sidebar.number_input("Valor inicial (R$):", min_value=0.0, value=10000.0, step=1000.0, format="%.2f")
+valor_inicial = st.sidebar.number_input("Valor inicial (R$):", min_value=0.0, value=500000.0, step=100000.0, format="%.2f")
 st.sidebar.subheader("Aportes periódicos")
-aporte = st.sidebar.number_input("Valor do aporte (R$):", min_value=0.0, value=1000.0, step=100.0, format="%.2f")
+aporte = st.sidebar.number_input("Valor do aporte (R$):", min_value=0.0, value=0.0, step=1000.0, format="%.2f")
 freq_aporte = st.sidebar.selectbox("Frequência dos aportes:", ("Mensal", "Anual"))
-taxa_anual = st.sidebar.slider("Taxa de retorno anual (%):", min_value=0.0, max_value=50.0, value=8.0, step=0.1)/100.0
-prazo_anos = st.sidebar.number_input("Prazo total (anos):", min_value=1, max_value=100, value=15, step=1)
+taxa_anual = st.sidebar.slider("Taxa de retorno anual (%):", min_value=0.0, max_value=50.0, value=10.1, step=0.1)/100.0
+prazo_anos = st.sidebar.number_input("Prazo total (anos):", min_value=1, max_value=50, value=10, step=1)
 st.sidebar.subheader("Renda Fixa")
-ciclo_anos = st.sidebar.number_input("Ciclo de reinvestimento RF (anos):", min_value=1, max_value=50, value=4, step=1)
+ciclo_anos = st.sidebar.number_input("Ciclo de reinvestimento RF (anos):", min_value=1, max_value=50, value=5, step=1)
 btn = st.sidebar.button("Calcular projeções")
 
 if not btn:
@@ -228,9 +240,4 @@ else:
     })
     st.table(df_taxas)
 
-    st.markdown(
-        """
-        **Explicação**  
-        - As **taxas necessárias** foram calculadas via bisseção para cada modalidade, mantendo todos os demais parâmetros fixos, de modo que o valor final líquido fosse igual ao do VGBL.  
-        """
-    )
+    st.success("Cálculo concluído com sucesso!")
