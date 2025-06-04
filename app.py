@@ -1,4 +1,4 @@
-# app.py - Versão 1.1.0
+# app.py - Versão 1.2.0
 
 import numpy as np
 
@@ -87,11 +87,12 @@ def simular_fundo(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos):
 def simular_rf(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos, ciclo_anos):
     """
     Simula títulos de renda fixa lote a lote, com tributação regressiva ao final de cada ciclo.
+    Se ciclo_anos <= 0, não tributa periodicamente, apenas tributa no fim.
     Retorna: (valor_final_líquido, imposto_total_pago)
     """
     meses_totais = int(prazo_anos * 12)
     taxa_mensal = (1 + taxa_anual) ** (1 / 12) - 1
-    ciclo_meses = int(ciclo_anos * 12)
+    ciclo_meses = int(ciclo_anos * 12) if ciclo_anos > 0 else None
 
     lotes = [[valor_inicial, valor_inicial, 0]]
     imposto_total = 0.0
@@ -107,8 +108,8 @@ def simular_rf(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos, ciclo
         for lote in lotes:
             lote[0] *= (1 + taxa_mensal)
 
-        # Tributar a cada ciclo completo
-        if mes % ciclo_meses == 0:
+        # Tributar a cada ciclo completo, se aplicável
+        if ciclo_meses and mes % ciclo_meses == 0:
             for i, (valor, base, mes_ap) in enumerate(lotes):
                 holding = mes - mes_ap
                 ganho = valor - base
@@ -120,10 +121,22 @@ def simular_rf(valor_inicial, aporte, freq_aporte, taxa_anual, prazo_anos, ciclo
                     lotes[i][1] = valor_liquido
                     imposto_total += imposto
 
-    # Tributar resíduo final se houver
-    for i, (valor, base, mes_ap) in enumerate(lotes):
-        holding = meses_totais - mes_ap
-        if holding > 0 and (holding % ciclo_meses != 0):
+    # Tributar resíduo final se houver e ciclo aplicável
+    if ciclo_meses:
+        for i, (valor, base, mes_ap) in enumerate(lotes):
+            holding = meses_totais - mes_ap
+            if holding > 0 and (holding % ciclo_meses != 0):
+                ganho = valor - base
+                if ganho > 0:
+                    alq = aliquota_regressiva(holding)
+                    imposto = ganho * alq
+                    valor_liquido = valor - imposto
+                    lotes[i][0] = valor_liquido
+                    imposto_total += imposto
+    else:
+        # se sem ciclo, tributa tudo no fim
+        for i, (valor, base, mes_ap) in enumerate(lotes):
+            holding = meses_totais - mes_ap
             ganho = valor - base
             if ganho > 0:
                 alq = aliquota_regressiva(holding)
@@ -203,7 +216,7 @@ if __name__ == "__main__":
     aporte = 0.0
     freq_aporte = "Mensal"
     prazo_anos = 10
-    ciclo_anos = 5
+    ciclo_anos = 5  # se definir como 0, tributa só no fim
     taxa_inicial = 0.101  # utilizado apenas para calcular VGBL benchmark
 
     # 1) Calcular VGBL benchmark
